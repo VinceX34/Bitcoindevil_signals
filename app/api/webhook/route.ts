@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';

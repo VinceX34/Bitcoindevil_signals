@@ -26,7 +26,7 @@ export default function HomePage() {
     <main className="container mx-auto p-4 space-y-10">
       <SignalsDisplay
         signals={raw}
-        title="Raw TradingView Signals"
+        title="TradingView Signals"
         className="max-w-3xl mx-auto"
       />
       <ForwardedSignalsDisplay

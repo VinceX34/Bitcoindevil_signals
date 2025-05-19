@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/cryptohopper/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
