@@ -12,6 +12,7 @@ export default function HomePage() {
   const [authorized, setAuthorized] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [isRawSignalsOpen, setIsRawSignalsOpen] = useState(true);
   const [isForwardedSignalsOpen, setIsForwardedSignalsOpen] = useState(true);
@@ -92,7 +93,8 @@ export default function HomePage() {
    * ------------------------------------------------------------------*/
   if (!authorized) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+      // Achtergrond aangepast naar dark:bg-neutral-900 voor consistentie
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-neutral-900 p-4">
         <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md space-y-6">
           <h1 className="text-3xl font-bold text-center text-gray-900 dark:text-white">
             Wachtwoord Vereist
@@ -100,19 +102,30 @@ export default function HomePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="passwordInput" className="sr-only">Wachtwoord</label>
-              <input
-                id="passwordInput"
-                type="password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Typ uw wachtwoord"
-                className="border border-gray-300 dark:border-gray-600 p-3 w-full rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                required
-              />
+              {/* Container voor inputveld en oog-icoon */}
+              <div className="relative">
+                <input
+                  id="passwordInput"
+                  type={showPassword ? "text" : "password"} // Dynamisch type
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Typ uw wachtwoord"
+                  className="border border-gray-300 dark:border-gray-600 p-3 w-full rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pr-10" // Extra padding rechts voor het icoon
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 px-3 flex items-center text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                  aria-label={showPassword ? "Verberg wachtwoord" : "Toon wachtwoord"}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-black dark:text-white font-semibold py-3 px-4 rounded-md transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              className="w-full bg-black hover:bg-gray-800 dark:bg-black dark:hover:bg-gray-800 text-white font-semibold py-3 px-4 rounded-md transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             >
               Verstuur
             </button>
@@ -124,7 +137,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-10">
+    <main className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-10 bg-gray-100 dark:bg-neutral-900">
       <SignalsDisplay
         signals={raw}
         title="TradingView Signals"
