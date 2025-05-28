@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import SignalsDisplay from "./components/SignalsDisplay";
 import ForwardedSignalsDisplay from "./components/chsignals";
 import QueuedSignalsDisplay from "./components/queued-signals";
-import type { SimpleTradingViewSignal, ForwardedSignal } from "@/lib/db";
+import type { SimpleTradingViewSignal, ForwardedSignal, QueuedSignal } from "@/lib/db";
 
 export default function HomePage() {
   /* ------------------------------------------------------------------
@@ -23,7 +23,7 @@ export default function HomePage() {
 
   const [raw, setRaw] = useState<SimpleTradingViewSignal[]>([]);
   const [forwarded, setForwarded] = useState<ForwardedSignal[]>([]);
-  const [queued, setQueued] = useState<any[]>([]);
+  const [queued, setQueued] = useState<QueuedSignal[]>([]);
 
   const handleRawSignalsDelete = () => {
     setRaw([]);
@@ -53,10 +53,11 @@ export default function HomePage() {
         if (r2.success) setForwarded(r2.signals);
         if (r3.success) setQueued(r3.signals);
       } else {
-        alert('Failed to process queue: ' + data.error);
+        alert('Failed to process queue: ' + (data.error || 'Unknown error'));
       }
-    } catch (error) {
-      alert('Error processing queue');
+    } catch {
+      console.error('Error processing queue');
+      alert('Error processing queue. Check console for details.');
     } finally {
       setIsProcessingQueue(false);
     }

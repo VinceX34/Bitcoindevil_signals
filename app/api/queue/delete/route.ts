@@ -16,8 +16,8 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM cryptohopper_queue;');
       return NextResponse.json<ApiResponse>({ success: true, message: 'All queued signals deleted successfully.' });
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('Error in DELETE /api/queue/delete:', error);
     return NextResponse.json<ApiResponse>(
       { success: false, error: 'Failed to delete queued signal(s)', details: errorMessage },

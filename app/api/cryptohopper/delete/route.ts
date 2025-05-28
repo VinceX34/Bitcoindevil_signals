@@ -16,8 +16,8 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM forwarded_signals;');
       return NextResponse.json<ApiResponse>({ success: true, message: 'All forwarded signals deleted successfully.' });
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('Error in DELETE /api/cryptohopper/delete:', error);
     return NextResponse.json<ApiResponse>(
       { success: false, error: 'Failed to delete forwarded signal(s)', details: errorMessage },

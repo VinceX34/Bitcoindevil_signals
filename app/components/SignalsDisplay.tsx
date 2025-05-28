@@ -34,8 +34,8 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
       } else {
         alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Error deleting TradingView signals:', error);
+    } catch {
+      console.error('Error deleting TradingView signals:');
       alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);

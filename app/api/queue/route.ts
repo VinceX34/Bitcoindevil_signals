@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
+import { executeQuery, QueuedSignal } from '@/lib/db';
+import { ApiResponse } from '@/lib/types';
+
+// Define a more specific response type for this endpoint
+interface QueueGetResponse extends ApiResponse {
+  signals?: QueuedSignal[];
+  pagination?: { limit: number };
+}
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -20,12 +27,13 @@ export async function GET(req: NextRequest) {
        ORDER BY created_at DESC
        LIMIT $1;`,
       [limit]
-    );
-    return NextResponse.json({ success: true, signals: rows, pagination: { limit } });
-  } catch (e: any) {
+    ) as QueuedSignal[];
+    return NextResponse.json<QueueGetResponse>({ success: true, signals: rows, pagination: { limit } });
+  } catch (e: unknown) {
     console.error('Queue GET: DB error', e);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch queued signals', details: e.message },
+    const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred';
+    return NextResponse.json<QueueGetResponse>(
+      { success: false, error: 'Failed to fetch queued signals', details: errorMessage },
       { status: 500 },
     );
   }

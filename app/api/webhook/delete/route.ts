@@ -16,8 +16,8 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM tradingview_signals;');
       return NextResponse.json<ApiResponse>({ success: true, message: 'All TradingView signals deleted successfully.' });
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('Error in DELETE /api/webhook/delete:', error);
     return NextResponse.json<ApiResponse>(
       { success: false, error: 'Failed to delete TradingView signal(s)', details: errorMessage },

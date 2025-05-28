@@ -34,8 +34,8 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
       } else {
         alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
       }
-    } catch (error) {
-      console.error('Error deleting queued signals:', error);
+    } catch {
+      console.error('Error deleting queued signals:');
       alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);

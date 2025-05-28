@@ -30,10 +30,11 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     console.error('Error validating password:', error);
     return NextResponse.json<ApiResponse>(
-      { success: false, error: 'Failed to validate password' },
+      { success: false, error: 'Failed to validate password', details: errorMessage },
       { status: 500 }
     );
   }
