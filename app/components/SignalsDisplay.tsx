@@ -23,19 +23,20 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete all signals?')) return;
-    
+    if (!confirm('Are you sure you want to delete all TradingView signals?')) return;
+
     setIsDeleting(true);
     try {
       const response = await fetch('/api/webhook/delete', { method: 'DELETE' });
       const data = await response.json();
       if (data.success) {
-        onDelete();
+        onDelete(); 
       } else {
-        alert('Failed to delete signals: ' + data.error);
+        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      alert('Error deleting signals');
+      console.error('Error deleting TradingView signals:', error);
+      alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);
     }

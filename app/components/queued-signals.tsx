@@ -27,15 +27,16 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
     
     setIsDeleting(true);
     try {
-      const response = await fetch('/api/queue/delete', { method: 'DELETE' });
+      const response = await fetch('/api/queue/delete', { method: 'DELETE' }); 
       const data = await response.json();
       if (data.success) {
         onDelete();
       } else {
-        alert('Failed to delete signals: ' + data.error);
+        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      alert('Error deleting signals');
+      console.error('Error deleting queued signals:', error);
+      alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);
     }

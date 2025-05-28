@@ -33,10 +33,11 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
       if (data.success) {
         onDelete();
       } else {
-        alert('Failed to delete signals: ' + data.error);
+        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
-      alert('Error deleting signals');
+      console.error('Error deleting forwarded signals:', error);
+      alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);
     }

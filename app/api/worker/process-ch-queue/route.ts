@@ -17,12 +17,6 @@ interface QueuePayload {
   payload_to_ch_api: any;
 }
 
-interface DBQueueTask {
-  id: number;
-  payload: QueuePayload;
-  attempts: number;
-}
-
 export async function GET() {
   console.log('Worker process-ch-queue invoked.');
   let tasksProcessedThisRun = 0;

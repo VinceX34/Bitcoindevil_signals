@@ -1,26 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { ApiResponse } from '@/lib/types';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { password } = await req.json();
+    const { password } = await request.json();
+    
+    if (!password) {
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: 'Password is required' },
+        { status: 400 }
+      );
+    }
 
-    // Compare against your environment variable
+    // Compare against environment variable
     if (password === process.env.PASSWORD) {
-      // Prepare a response with the success status
-      const res = NextResponse.json({ success: true });
-
+      const response = NextResponse.json<ApiResponse>({ success: true });
+      
       // Set the 'authorized' cookie
-      res.cookies.set("authorized", "true", {
+      response.cookies.set("authorized", "true", {
         httpOnly: true,
         path: "/" // Cookie is valid across the entire site
       });
-      return res;
+      
+      return response;
     } else {
       // Password was incorrect
-      return NextResponse.json({ success: false, error: "Invalid password" });
+      return NextResponse.json<ApiResponse>(
+        { success: false, error: "Invalid password" },
+        { status: 401 }
+      );
     }
-  } catch (error: any) {
-    // Handle any server error
-    return NextResponse.json({ success: false, error: error.message });
+  } catch (error) {
+    console.error('Error validating password:', error);
+    return NextResponse.json<ApiResponse>(
+      { success: false, error: 'Failed to validate password' },
+      { status: 500 }
+    );
   }
 }
