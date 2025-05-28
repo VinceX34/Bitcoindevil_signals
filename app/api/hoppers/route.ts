@@ -44,6 +44,7 @@ export async function GET() {
             total_cur: '0',
             image: null,
             error: true,
+            assets: {},
             raw: null,
           });
           continue;
@@ -52,6 +53,24 @@ export async function GET() {
         const json = await res.json();
         const hopper = json?.data?.hopper ?? {};
 
+        // Fetch assets for this hopper (with a short delay first to respect rate limits)
+        await delay(2000);
+        let assets: Record<string, string> = {};
+        try {
+          const assetsRes = await fetch(`https://api.cryptohopper.com/v1/hopper/${id}/assets`, {
+            headers: { 'access-token': accessToken },
+            next: { revalidate: 60 },
+          });
+          if (assetsRes.ok) {
+            const assetsJson = await assetsRes.json();
+            assets = assetsJson?.data ?? {};
+          } else {
+            console.error(`Failed fetching assets for hopper ${id} – status ${assetsRes.status}`);
+          }
+        } catch (assetsErr) {
+          console.error(`Error fetching assets for hopper ${id}:`, assetsErr);
+        }
+
         hoppers.push({
           id,
           exchange,
@@ -59,10 +78,11 @@ export async function GET() {
           total_cur: hopper.total_cur,
           image: hopper.image,
           error: false,
+          assets,
           raw: hopper,
         });
 
-        // Wait 2 seconds between API calls to respect rate limits
+        // Wait 2 seconds between API calls to respect rate limits (already added before assets fetch).
         if (id !== HOPPER_CONFIGS[HOPPER_CONFIGS.length - 1].id) {
           await delay(2000);
         }
@@ -76,6 +96,7 @@ export async function GET() {
           total_cur: '0',
           image: null,
           error: true,
+          assets: {},
           raw: null,
         });
       }
@@ -92,6 +113,7 @@ export async function GET() {
       total_cur: '0',
       image: null,
       error: true,
+      assets: {},
       raw: null,
     }));
     return NextResponse.json({ success: false, hoppers: placeholderHoppers, error: e?.message });

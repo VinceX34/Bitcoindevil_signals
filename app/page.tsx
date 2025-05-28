@@ -3,23 +3,39 @@
 import { useEffect, useState } from "react";
 import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
+import TotalValueGraph from "./components/TotalValueGraph";
 
-// Helper function to check cookie (client-side only)
-const getInitialAuthState = () => {
-  if (typeof window !== 'undefined') {
-    // First, check localStorage
-    const loggedIn = localStorage.getItem('isLoggedIn');
-    if (loggedIn === 'true') {
-      return true;
-    }
-    // Fallback to cookie check
-    return document.cookie.split('; ').some(c => c.startsWith('authorized='));
-  }
-  return false; // Default for server-side rendering
+// Helper to check auth client-side only (used inside a useEffect)
+const determineClientAuth = (): boolean => {
+  // Check localStorage first
+  const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  if (loggedIn) return true;
+  // Fallback to cookie check
+  return document.cookie.split('; ').some(c => c.startsWith('authorized='));
 };
 
+// Placeholder hopper objects to ensure stable SSR markup
+const PLACEHOLDER_HOPPERS = [
+  { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1506523', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1455342', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1790517', name: 'Loading...', exchange: 'Kraken', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1808770', name: 'Loading...', exchange: 'Crypto.com', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1817774', name: 'Loading...', exchange: 'Coinbase', total_cur: '0', error: true, assets: {}, image: null },
+];
+
 export default function HomePage() {
-  const [authorized, setAuthorized] = useState(getInitialAuthState());
+  // Always start unauthorized to keep server & client markup identical during hydration
+  const [authorized, setAuthorized] = useState(false);
+  // Track mounting to avoid code that relies on 'window' during SSR
+  const [mounted, setMounted] = useState(false);
+
+  // After mount, determine real auth status
+  useEffect(() => {
+    setMounted(true);
+    setAuthorized(determineClientAuth());
+  }, []);
+
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -63,7 +79,7 @@ export default function HomePage() {
   const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
 
   // NEW: state for Hopper data
-  const [hoppers, setHoppers] = useState<any[]>([]);
+  const [hoppers, setHoppers] = useState<any[]>(PLACEHOLDER_HOPPERS);
   const [loadingHoppers, setLoadingHoppers] = useState(false);
   const [hopperError, setHopperError] = useState<string | null>(null);
 
@@ -75,9 +91,14 @@ export default function HomePage() {
       const res = await fetch('/api/hoppers');
       const data = await res.json();
       if (data.success) {
-        setHoppers(data.hoppers || []);
+        // Ensure we always have exactly 6 items to prevent hydration differences
+        const fetched = data.hoppers || [];
+        const merged = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || ph);
+        setHoppers(merged);
       } else {
-        setHoppers(data.hoppers || []); // Still set hoppers even if there's an error
+        const fetched = data.hoppers || [];
+        const merged = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || ph);
+        setHoppers(merged); // Keep placeholders where missing
         setHopperError(data.error || 'Failed to load hopper data.');
       }
     } catch (e: any) {
@@ -102,6 +123,12 @@ export default function HomePage() {
     setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
     return () => observer.disconnect();
   }, []);
+
+  // Calculate total value from all hoppers
+  const totalValue = hoppers.reduce((sum, hopper) => {
+    const value = Number(hopper.total_cur) || 0;
+    return sum + value;
+  }, 0);
 
   if (!authorized) {
     return (
@@ -180,6 +207,9 @@ export default function HomePage() {
               {hopperError}
             </div>
           )}
+
+          {/* Total Value Graph */}
+          <TotalValueGraph totalValue={totalValue} isDarkMode={currentThemeIsDark} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {hoppers.map((hopper) => (
