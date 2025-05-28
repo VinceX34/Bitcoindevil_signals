@@ -7,7 +7,7 @@ import Header from './components/Header'; // Import the Header
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "My Trading Signals",
+  title: "Bitcoindevil_signals",
   description: "Dashboard for viewing and managing trading signals",
 };
 
