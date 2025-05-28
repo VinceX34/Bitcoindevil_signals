@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { SimpleTradingViewSignal } from '../../lib/db'; // Adjusted relative path
+import { QueuedSignal } from '../../lib/db';
 
-interface SignalsDisplayProps {
-  signals: SimpleTradingViewSignal[];
+interface Props {
+  signals: QueuedSignal[];
   title?: string;
   isOpen: boolean;
   onToggle: () => void;
@@ -11,9 +11,9 @@ interface SignalsDisplayProps {
   isDarkMode: boolean;
 }
 
-const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
+const QueuedSignalsDisplay: React.FC<Props> = ({
   signals,
-  title = "Trading Signals",
+  title = "Queued Signals",
   isOpen,
   onToggle,
   className = "",
@@ -23,11 +23,11 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete all signals?')) return;
+    if (!confirm('Are you sure you want to delete all queued signals?')) return;
     
     setIsDeleting(true);
     try {
-      const response = await fetch('/api/webhook/delete', { method: 'DELETE' });
+      const response = await fetch('/api/queue/delete', { method: 'DELETE' });
       const data = await response.json();
       if (data.success) {
         onDelete();
@@ -75,17 +75,38 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
                   className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
                 >
                   <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
-                    <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
-                      ID: {signal.id}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
+                        ID: {signal.id}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${
+                        signal.status === 'pending' ? (isDarkMode ? 'bg-[#4d4d4d] text-[#cccccc]' : 'bg-gray-200 text-gray-700') :
+                        signal.status === 'processing' ? 'bg-[#0e639c] text-white' :
+                        signal.status === 'completed' ? 'bg-[#2d7d46] text-white' :
+                        'bg-[#f48771] text-white'
+                      }`}>
+                        {signal.status.toUpperCase()}
+                      </span>
+                      <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
+                        Attempts: {signal.attempts}
+                      </span>
+                    </div>
                     <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
-                      {new Date(signal.received_at).toLocaleString()}
+                      {new Date(signal.created_at).toLocaleString()}
                     </span>
                   </div>
                   <div className="p-3">
                     <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
-                      {JSON.stringify(signal.raw_data, null, 2)}
+                      {JSON.stringify(signal.payload.payload_to_ch_api, null, 2)}
                     </pre>
+                    {signal.error_message && (
+                      <p className="text-xs text-[#f48771] mt-2">{signal.error_message}</p>
+                    )}
+                    {signal.last_attempt_at && (
+                      <p className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'} mt-1`}>
+                        Last attempt: {new Date(signal.last_attempt_at).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -97,4 +118,4 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
   );
 };
 
-export default SignalsDisplay;
+export default QueuedSignalsDisplay;

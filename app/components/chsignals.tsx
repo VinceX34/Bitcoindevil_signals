@@ -1,68 +1,93 @@
 // components/ForwardedSignalsDisplay.tsx
-import React from 'react';
-import type { ForwardedSignal } from '@/lib/db';
+import React, { useState } from 'react';
+import { ForwardedSignal } from '../../lib/db';
 
 interface Props {
   signals: ForwardedSignal[];
+  title?: string;
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
+  onDelete: () => void;
+  isDarkMode: boolean;
 }
 
-export default function ForwardedSignalsDisplay({
+const ForwardedSignalsDisplay: React.FC<Props> = ({
   signals,
+  title = "Forwarded Signals",
   isOpen,
   onToggle,
-  className = '',
-}: Props) {
+  className = "",
+  onDelete,
+  isDarkMode
+}) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete all forwarded signals?')) return;
+    
+    setIsDeleting(true);
+    try {
+      const response = await fetch('/api/cryptohopper/delete', { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) {
+        onDelete();
+      } else {
+        alert('Failed to delete signals: ' + data.error);
+      }
+    } catch (error) {
+      alert('Error deleting signals');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <div className={`p-6 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-xl bg-gray-50 dark:bg-neutral-800 ${className}`}>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-          Forwarded Signals
-        </h2>
-        <button
-          onClick={onToggle}
-          className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800 focus:outline-none"
-          aria-expanded={isOpen}
-        >
-          {isOpen ? 'Verberg' : 'Toon'}
-        </button>
+    <div className={`${isDarkMode ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border rounded-md shadow-lg ${className}`}>
+      <div className={`flex justify-between items-center p-4 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
+        <h2 className={`${isDarkMode ? 'text-[#cccccc]' : 'text-gray-800'} font-medium`}>{title}</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={onToggle}
+            className={`px-3 py-1 text-sm font-medium ${isDarkMode ? 'text-[#cccccc] hover:text-white' : 'text-gray-600 hover:text-gray-800'} focus:outline-none`}
+            aria-expanded={isOpen}
+          >
+            {isOpen ? 'Hide Signals' : 'Show Signals'}
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting || signals.length === 0}
+            className="px-3 py-1 text-sm font-medium text-[#f48771] hover:text-[#ff9d8d] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDeleting ? 'Deleting...' : 'Delete All'}
+          </button>
+        </div>
       </div>
 
       {isOpen && (
         <>
-          {signals.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400">No forwarded signals yet.</p>
+          {!signals || signals.length === 0 ? (
+            <p className={`p-4 ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>No signals to display yet. Waiting for new data...</p>
           ) : (
-            <div className="max-h-[600px] overflow-y-auto pr-2 space-y-4">
-              {signals.map((s) => (
+            <div className="max-h-[600px] overflow-y-auto space-y-2 p-2">
+              {signals.map((signal) => (
                 <div
-                  key={s.id}
-                  className="p-4 border border-gray-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-700 shadow-sm"
+                  key={signal.id}
+                  className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
                 >
-                  <div className="flex justify-between text-xs mb-2">
-                    <span className="font-mono bg-green-100 dark:bg-green-700/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                      ID&nbsp;{s.id}
+                  <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
+                    <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
+                      ID: {signal.id}
                     </span>
-                    <span className="dark:text-gray-400">{new Date(s.created_at).toLocaleString()}</span>
+                    <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
+                      {new Date(signal.created_at).toLocaleString()}
+                    </span>
                   </div>
-
-                  <pre className="bg-gray-100 dark:bg-neutral-600 p-3 rounded-md text-xs text-gray-700 dark:text-gray-300 overflow-x-auto">
-                    {JSON.stringify(s.cryptohopper_payload, null, 2)}
-                  </pre>
-
-                  <p
-                    className={`mt-2 text-sm font-semibold ${
-                      s.status === 'SUCCESS' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    {s.status}
-                  </p>
-
-                  {s.error_message && (
-                    <p className="text-xs text-red-500 dark:text-red-400 mt-1">{s.error_message}</p>
-                  )}
+                  <div className="p-3">
+                    <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
+                      {JSON.stringify(signal.cryptohopper_payload, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               ))}
             </div>
@@ -71,4 +96,6 @@ export default function ForwardedSignalsDisplay({
       )}
     </div>
   );
-}
+};
+
+export default ForwardedSignalsDisplay;
