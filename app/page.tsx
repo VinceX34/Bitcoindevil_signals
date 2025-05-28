@@ -1,161 +1,81 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import SignalsDisplay from "./components/SignalsDisplay";
-import ForwardedSignalsDisplay from "./components/chsignals";
-import QueuedSignalsDisplay from "./components/queued-signals";
-import type { SimpleTradingViewSignal, ForwardedSignal, QueuedSignal } from "@/lib/db";
+import Footer from "./components/Footer";
+
+// Helper function to check cookie (client-side only)
+const getInitialAuthState = () => {
+  if (typeof window !== 'undefined') {
+    // First, check localStorage
+    const loggedIn = localStorage.getItem('isLoggedIn');
+    if (loggedIn === 'true') {
+      return true;
+    }
+    // Fallback to cookie check
+    return document.cookie.split('; ').some(c => c.startsWith('authorized='));
+  }
+  return false; // Default for server-side rendering
+};
 
 export default function HomePage() {
-  /* ------------------------------------------------------------------
-   *  STATE
-   * ------------------------------------------------------------------*/
-  const [authorized, setAuthorized] = useState(false);
+  const [authorized, setAuthorized] = useState(getInitialAuthState());
   const [passwordInput, setPasswordInput] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
-  const [isRawSignalsOpen, setIsRawSignalsOpen] = useState(true);
-  const [isForwardedSignalsOpen, setIsForwardedSignalsOpen] = useState(true);
-  const [isQueuedSignalsOpen, setIsQueuedSignalsOpen] = useState(true);
+  // useEffect(() => {
+  //   // This effect now primarily handles cases where the cookie might change 
+  //   // after initial load (e.g., logout elsewhere, cookie expiration if not handled by page reload)
+  //   // or to ensure consistency if the initial sync check had issues.
+  //   const isAuthorizedCookie = document.cookie.split('; ').some(c => c.startsWith('authorized='));
+  //   if (isAuthorizedCookie !== authorized) {
+  //       setAuthorized(isAuthorizedCookie);
+  //   }
+  // }, [authorized]); // Re-run if authorized state changes, or periodically if needed
 
-  const [raw, setRaw] = useState<SimpleTradingViewSignal[]>([]);
-  const [forwarded, setForwarded] = useState<ForwardedSignal[]>([]);
-  const [queued, setQueued] = useState<QueuedSignal[]>([]);
-
-  const handleRawSignalsDelete = () => {
-    setRaw([]);
-  };
-
-  const handleForwardedSignalsDelete = () => {
-    setForwarded([]);
-  };
-
-  const handleQueuedSignalsDelete = () => {
-    setQueued([]);
-  };
-
-  const handleProcessQueue = async () => {
-    setIsProcessingQueue(true);
-    try {
-      const response = await fetch('/api/worker/process-ch-queue');
-      const data = await response.json();
-      if (data.success) {
-        // Refresh the data after processing
-        const [r1, r2, r3] = await Promise.all([
-          fetch("/api/webhook").then((r) => r.json()),
-          fetch("/api/cryptohopper").then((r) => r.json()),
-          fetch("/api/queue").then((r) => r.json()),
-        ]);
-        if (r1.success) setRaw(r1.signals);
-        if (r2.success) setForwarded(r2.signals);
-        if (r3.success) setQueued(r3.signals);
-      } else {
-        alert('Failed to process queue: ' + (data.error || 'Unknown error'));
-      }
-    } catch {
-      console.error('Error processing queue');
-      alert('Error processing queue. Check console for details.');
-    } finally {
-      setIsProcessingQueue(false);
-    }
-  };
-
-  /* ------------------------------------------------------------------
-   *  AUTHENTICATION CHECK (runs once on mount)
-   * ------------------------------------------------------------------*/
-  useEffect(() => {
-    const isAuthorized = document.cookie
-      .split("; ")
-      .some((c) => c.startsWith("authorized="));
-
-    setAuthorized(isAuthorized);
-  }, []);
-
-  /* ------------------------------------------------------------------
-   *  PASSWORD SUBMIT HANDLER
-   * ------------------------------------------------------------------*/
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     try {
+      console.log('Attempting login...');
       const res = await fetch("/api/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: passwordInput }),
       });
-
       const data = await res.json();
+      console.log('Login response:', data);
       if (data.success) {
         setAuthorized(true);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('isLoggedIn', 'true'); // Set flag in localStorage
+        }
       } else {
-        setError("Invalid password. Please try again.");
+        setError(data.error || "Invalid password. Please try again.");
       }
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error);
       setError("Something went wrong. Please try again.");
     }
   };
-
-  /* ------------------------------------------------------------------
-   *  DATA FETCHING (only when authorized)
-   * ------------------------------------------------------------------*/
+  
+  const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
   useEffect(() => {
-    if (!authorized) return;
+    const observer = new MutationObserver(() => {
+      setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
+    return () => observer.disconnect();
+  }, []);
 
-    const load = async () => {
-      try {
-        const [r1, r2, r3] = await Promise.all([
-          fetch("/api/webhook").then((r) => r.json()),
-          fetch("/api/cryptohopper").then((r) => r.json()),
-          fetch("/api/queue").then((r) => r.json()),
-        ]);
-        if (r1.success) setRaw(r1.signals);
-        if (r2.success) setForwarded(r2.signals);
-        if (r3.success) setQueued(r3.signals);
-      } catch {
-        /* swallow errors silently or log */
-      }
-    };
-
-    load();
-    const id = setInterval(load, 10_000);
-    return () => clearInterval(id);
-  }, [authorized]);
-
-  const toggleRawSignals = () => {
-    setIsRawSignalsOpen(!isRawSignalsOpen);
-  };
-
-  const toggleForwardedSignals = () => {
-    setIsForwardedSignalsOpen(!isForwardedSignalsOpen);
-  };
-
-  const toggleQueuedSignals = () => {
-    setIsQueuedSignalsOpen(!isQueuedSignalsOpen);
-  };
-
-  /* ------------------------------------------------------------------
-   *  RENDER
-   * ------------------------------------------------------------------*/
   if (!authorized) {
     return (
-      <main className={`min-h-screen flex flex-col items-center justify-center ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-gray-100'} p-4`}>
-        <div className={`${isDarkMode ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} p-8 rounded-md shadow-2xl w-full max-w-md space-y-6 border`}>
-          <div className="flex justify-between items-center">
-            <h1 className={`text-2xl font-medium ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-800'}`}>
-              Password Required
-            </h1>
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              title="Toggle theme"
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${isDarkMode ? 'text-[#cccccc] bg-[#3c3c3c] hover:bg-[#4f4f4f]' : 'text-gray-700 bg-gray-200 hover:bg-gray-300'}`}
-            >
-              {isDarkMode ? 'Light' : 'Dark'}
-            </button>
-          </div>
+      <main className={`min-h-screen flex flex-col items-center justify-center ${currentThemeIsDark ? 'bg-[#1e1e1e]' : 'bg-gray-100'} p-4`}>
+        <div className={`${currentThemeIsDark ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} p-8 rounded-md shadow-2xl w-full max-w-md space-y-6 border`}>
+          <h1 className={`text-2xl font-medium text-center ${currentThemeIsDark ? 'text-[#cccccc]' : 'text-gray-800'}`}>
+            Password Required
+          </h1>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="passwordInput" className="sr-only">Password</label>
@@ -167,7 +87,7 @@ export default function HomePage() {
                   onChange={(e) => setPasswordInput(e.target.value)}
                   placeholder="Enter your password"
                   className={`border p-3 w-full rounded focus:ring-1 focus:ring-[#007acc] focus:border-[#007acc] outline-none pr-10 ${
-                    isDarkMode 
+                    currentThemeIsDark 
                       ? 'border-[#3c3c3c] bg-[#3c3c3c] text-[#cccccc] placeholder-[#808080]' 
                       : 'border-gray-300 bg-white text-gray-800 placeholder-gray-400'
                   }`}
@@ -177,7 +97,7 @@ export default function HomePage() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className={`absolute inset-y-0 right-0 px-3 flex items-center text-sm ${
-                    isDarkMode ? 'text-[#cccccc] hover:text-white' : 'text-gray-600 hover:text-gray-800'
+                    currentThemeIsDark ? 'text-[#cccccc] hover:text-white' : 'text-gray-600 hover:text-gray-800'
                   }`}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
@@ -199,60 +119,16 @@ export default function HomePage() {
   }
 
   return (
-    <main className={`min-h-screen ${isDarkMode ? 'bg-[#1e1e1e]' : 'bg-gray-100'} p-4 sm:p-6 lg:p-8`}>
-      <div className="max-w-4xl mx-auto">
-        <header className={`flex justify-between items-center mb-8 p-4 rounded-md shadow-md ${isDarkMode ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border`}>
-          <h1 className={`text-2xl font-semibold ${isDarkMode ? 'text-[#cccccc]' : 'text-gray-800'}`}>Signal Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleProcessQueue}
-              disabled={isProcessingQueue}
-              title="Process Queue"
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                isDarkMode 
-                  ? 'text-[#cccccc] bg-[#0e639c] hover:bg-[#1177bb] disabled:bg-[#3c3c3c]' 
-                  : 'text-white bg-[#0e639c] hover:bg-[#1177bb] disabled:bg-gray-300'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {isProcessingQueue ? 'Processing...' : 'Process Queue'}
-            </button>
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              title="Toggle theme"
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${isDarkMode ? 'text-[#cccccc] bg-[#3c3c3c] hover:bg-[#4f4f4f]' : 'text-gray-700 bg-gray-200 hover:bg-gray-300'}`}
-            >
-              {isDarkMode ? 'Light' : 'Dark'}
-            </button>
-          </div>
-        </header>
-
-        <div className="space-y-8">
-          <SignalsDisplay
-            signals={raw}
-            title="TradingView Signals"
-            isOpen={isRawSignalsOpen}
-            onToggle={toggleRawSignals}
-            onDelete={handleRawSignalsDelete}
-            isDarkMode={isDarkMode}
-          />
-          <ForwardedSignalsDisplay
-            signals={forwarded}
-            title="Forwarded Signals"
-            isOpen={isForwardedSignalsOpen}
-            onToggle={toggleForwardedSignals}
-            onDelete={handleForwardedSignalsDelete}
-            isDarkMode={isDarkMode}
-          />
-          <QueuedSignalsDisplay
-            signals={queued}
-            title="Queued Signals"
-            isOpen={isQueuedSignalsOpen}
-            onToggle={toggleQueuedSignals}
-            onDelete={handleQueuedSignalsDelete}
-            isDarkMode={isDarkMode}
-          />
+    <div className="min-h-screen flex flex-col">
+      <main className={`flex-grow p-4 lg:p-8 ${currentThemeIsDark ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-100 text-gray-800'}`}>
+        <div className="max-w-7xl mx-auto space-y-8">
+          <h1 className="text-3xl font-semibold">
+            Home Dashboard
+          </h1>
+          <p>Welcome to your Home Dashboard! Content coming soon.</p>
         </div>
-      </div>
-    </main>
+      </main>
+      <Footer isDarkMode={currentThemeIsDark} />
+    </div>
   );
 }

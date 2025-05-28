@@ -5,6 +5,11 @@ export async function POST(request: Request) {
   try {
     const { password } = await request.json();
     
+    console.log('Password validation attempt:', {
+      received: password ? 'yes' : 'no',
+      envPasswordSet: process.env.PASSWORD ? 'yes' : 'no'
+    });
+    
     if (!password) {
       return NextResponse.json<ApiResponse>(
         { success: false, error: 'Password is required' },
@@ -16,10 +21,13 @@ export async function POST(request: Request) {
     if (password === process.env.PASSWORD) {
       const response = NextResponse.json<ApiResponse>({ success: true });
       
-      // Set the 'authorized' cookie
+      // Set the 'authorized' cookie to last for 7 days
       response.cookies.set("authorized", "true", {
         httpOnly: true,
-        path: "/" // Cookie is valid across the entire site
+        path: "/",
+        secure: process.env.NODE_ENV === 'production', // Send only over HTTPS in production
+        sameSite: 'lax', // Good default for most cases
+        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
       });
       
       return response;
