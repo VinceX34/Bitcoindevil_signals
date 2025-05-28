@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Footer from "./components/Footer";
+import HopperCard from "./components/HopperCard";
 
 // Helper function to check cookie (client-side only)
 const getInitialAuthState = () => {
@@ -60,6 +61,39 @@ export default function HomePage() {
   };
   
   const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
+
+  // NEW: state for Hopper data
+  const [hoppers, setHoppers] = useState<any[]>([]);
+  const [loadingHoppers, setLoadingHoppers] = useState(false);
+  const [hopperError, setHopperError] = useState<string | null>(null);
+
+  // Fetch hopper data
+  const fetchHoppers = async () => {
+    setLoadingHoppers(true);
+    setHopperError(null);
+    try {
+      const res = await fetch('/api/hoppers');
+      const data = await res.json();
+      if (data.success) {
+        setHoppers(data.hoppers || []);
+      } else {
+        setHoppers(data.hoppers || []); // Still set hoppers even if there's an error
+        setHopperError(data.error || 'Failed to load hopper data.');
+      }
+    } catch (e: any) {
+      console.error('Error fetching hoppers:', e);
+      setHopperError(e?.message || 'Unknown error');
+    } finally {
+      setLoadingHoppers(false);
+    }
+  };
+
+  // Fetch hopper data once authorized
+  useEffect(() => {
+    if (!authorized) return;
+    fetchHoppers();
+  }, [authorized]);
+
   useEffect(() => {
     const observer = new MutationObserver(() => {
       setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
@@ -122,10 +156,36 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       <main className={`flex-grow p-4 lg:p-8 ${currentThemeIsDark ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-100 text-gray-800'}`}>
         <div className="max-w-7xl mx-auto space-y-8">
-          <h1 className="text-3xl font-semibold">
-            Home Dashboard
-          </h1>
-          <p>Welcome to your Home Dashboard! Content coming soon.</p>
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-semibold">
+              Home Dashboard
+            </h1>
+            <button
+              onClick={fetchHoppers}
+              disabled={loadingHoppers}
+              className={`px-4 py-2 rounded-md font-medium ${
+                currentThemeIsDark
+                  ? 'bg-[#0e639c] hover:bg-[#1177bb] text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {loadingHoppers ? 'Refreshing...' : 'Refresh Stats'}
+            </button>
+          </div>
+          
+          {hopperError && (
+            <div className={`p-4 rounded-md ${
+              currentThemeIsDark ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-700'
+            }`}>
+              {hopperError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {hoppers.map((hopper) => (
+              <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
+            ))}
+          </div>
         </div>
       </main>
       <Footer isDarkMode={currentThemeIsDark} />
