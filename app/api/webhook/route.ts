@@ -3,20 +3,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';
 
-/** Absolute basis-URL bepalen (prod → NEXT_PUBLIC_SITE_URL, anders localhost) */
-function getBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ??
-    'http://localhost:3000'
-  );
-}
-
 /** Asynchroon doorsturen naar /api/cryptohopper  */
 async function forwardToCryptoHopper(
-  signalPayloadFromTradingView: any, // Dit is het 'signal' object dat van TradingView komt
-  savedSignalId: number, // Het ID van het opgeslagen record in tradingview_signals
+  signalPayloadFromTradingView: any,
+  savedSignalId: number,
+  baseUrl: string,
 ): Promise<void> {
-  const url = `${getBaseUrl()}/api/cryptohopper`;
+  const url = `${baseUrl}/api/cryptohopper`;
 
   // De Cryptohopper access token is altijd hetzelfde en wordt uit environment variables gehaald.
   const cryptohopperAccessToken = process.env.CRYPTOHOPPER_ACCESS_TOKEN;
@@ -51,12 +44,7 @@ async function forwardToCryptoHopper(
   // Maak een 'task' voor elke targetHopperId uit de vaste lijst.
   const tasksForCryptohopper = fixedTargetHopperIds.map((hopperId) => ({
     hopper_id: hopperId,
-    access_token: cryptohopperAccessToken, // Dezelfde token voor alle taken
-    // De payload_to_ch_api is de volledige signalPayloadFromTradingView.
-    // Dit is correct als Cryptohopper API de velden "order_type" en "coin" direct verwacht
-    // en de rest van de order details (zoals market, amount etc.) door de bot zelf wordt bepaald.
-    // Als Cryptohopper API meer specifieke velden vereist (bv. 'pair' i.p.v. 'coin', of 'type' i.p.v. 'order_type'),
-    // dan moet je de signalPayloadFromTradingView hieronder transformeren.
+    access_token: cryptohopperAccessToken,
     payload_to_ch_api: { ...signalPayloadFromTradingView },
   }));
 
@@ -67,7 +55,7 @@ async function forwardToCryptoHopper(
   };
 
   console.log(
-    `Forwarding ${tasksForCryptohopper.length} task(s) to /api/cryptohopper for TV signal ID ${savedSignalId}. Target hoppers: ${fixedTargetHopperIds.join(', ')}`,
+    `Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV signal ID ${savedSignalId}. Target hoppers: ${fixedTargetHopperIds.join(', ')}`,
   );
 
   // Verstuur de taken naar de /api/cryptohopper route
@@ -87,6 +75,11 @@ async function forwardToCryptoHopper(
 // POST  – ontvangt TradingView-webhook
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
+  // Determine the base URL from the request headers or environment
+  const protocol = req.headers.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
+  const host = req.headers.get('host') || process.env.VERCEL_URL || 'localhost:3000'; // VERCEL_URL for Vercel, fallback to host, then localhost
+  const baseUrl = `${protocol}://${host}`;
+
   //----------------------------------------------------------------
   // 1. Body uitlezen & JSON parsen
   //----------------------------------------------------------------
@@ -154,7 +147,7 @@ export async function POST(req: NextRequest) {
   //----------------------------------------------------------------
   // 3. Asynchroon doorsturen naar CryptoHopper (via de /api/cryptohopper route)
   //----------------------------------------------------------------
-  forwardToCryptoHopper(signalFromTradingView, savedSignalRecord.id);
+  forwardToCryptoHopper(signalFromTradingView, savedSignalRecord.id, baseUrl);
 
   //----------------------------------------------------------------
   // 4. Antwoord aan TradingView
