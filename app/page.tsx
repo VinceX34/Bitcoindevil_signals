@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
 import TotalValueGraph from "./components/TotalValueGraph";
+import WealthHistoryGraph from "./components/WealthHistoryGraph";
 
 // Helper to check auth client-side only (used inside a useEffect)
 const determineClientAuth = (): boolean => {
@@ -82,38 +83,83 @@ export default function HomePage() {
   const [hoppers, setHoppers] = useState<any[]>(PLACEHOLDER_HOPPERS);
   const [loadingHoppers, setLoadingHoppers] = useState(false);
   const [hopperError, setHopperError] = useState<string | null>(null);
+  const [initialHopperLoadAttempted, setInitialHopperLoadAttempted] = useState(false);
 
   // Fetch hopper data
-  const fetchHoppers = async () => {
+  const fetchHoppers = async (isManualRefresh = false) => {
+    if (!isManualRefresh && loadingHoppers) return; // Prevent multiple auto-fetches if already loading
     setLoadingHoppers(true);
     setHopperError(null);
     try {
       const res = await fetch('/api/hoppers');
       const data = await res.json();
+      let processedHoppers = PLACEHOLDER_HOPPERS;
       if (data.success) {
-        // Ensure we always have exactly 6 items to prevent hydration differences
         const fetched = data.hoppers || [];
-        const merged = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || ph);
-        setHoppers(merged);
+        processedHoppers = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || { ...ph, name: `${ph.exchange} (Error)`, error: true });
+        setHoppers(processedHoppers);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('hopperData', JSON.stringify(processedHoppers));
+          localStorage.setItem('hopperDataTimestamp', Date.now().toString());
+        }
       } else {
         const fetched = data.hoppers || [];
-        const merged = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || ph);
-        setHoppers(merged); // Keep placeholders where missing
+        // Even on error, try to use any partial data returned, or stick to placeholders if API error
+        processedHoppers = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || { ...ph, name: `${ph.exchange} (Load Failed)`, error: true });
+        setHoppers(processedHoppers);
         setHopperError(data.error || 'Failed to load hopper data.');
+        // Optionally, clear local storage on API error so next load attempts fresh fetch
+        // if (typeof window !== 'undefined') {
+        //   localStorage.removeItem('hopperData');
+        //   localStorage.removeItem('hopperDataTimestamp');
+        // }
       }
     } catch (e: any) {
       console.error('Error fetching hoppers:', e);
-      setHopperError(e?.message || 'Unknown error');
+      setHopperError(e?.message || 'Unknown error fetching data.');
+      // On catch, show placeholders, don't clear cache as it might be a temporary network issue
+      setHoppers(PLACEHOLDER_HOPPERS.map(ph => ({ ...ph, name: `${ph.exchange} (Network Error)`, error: true })));
     } finally {
       setLoadingHoppers(false);
+      if (!initialHopperLoadAttempted) {
+        setInitialHopperLoadAttempted(true);
+      }
     }
   };
 
-  // Fetch hopper data once authorized
+  // Effect for initial data load and handling authorization changes
   useEffect(() => {
-    if (!authorized) return;
-    fetchHoppers();
-  }, [authorized]);
+    if (!mounted || !authorized || initialHopperLoadAttempted) return;
+
+    if (typeof window !== 'undefined') {
+      const cachedHoppers = localStorage.getItem('hopperData');
+      // const cachedTimestamp = localStorage.getItem('hopperDataTimestamp'); // Could use for expiry later
+
+      if (cachedHoppers) {
+        try {
+          const parsedHoppers = JSON.parse(cachedHoppers);
+          // Basic validation: ensure it's an array and has expected structure (e.g., 6 items)
+          if (Array.isArray(parsedHoppers) && parsedHoppers.length === PLACEHOLDER_HOPPERS.length) {
+            setHoppers(parsedHoppers);
+            console.log('Loaded hoppers from cache');
+            setInitialHopperLoadAttempted(true); // Mark initial load from cache as attempted
+            setLoadingHoppers(false); // Ensure loading is false if loaded from cache
+            return; // Loaded from cache, no need to fetch initially
+          }
+        } catch (e) {
+          console.error('Error parsing cached hopper data:', e);
+          localStorage.removeItem('hopperData'); // Clear corrupted cache
+          localStorage.removeItem('hopperDataTimestamp');
+        }
+      }
+    }
+    // If no valid cache, or if it's the first authorized load and initialHopperLoadAttempted is still false
+    if (!initialHopperLoadAttempted) {
+        console.log('No valid cache or first load, fetching hoppers...');
+        fetchHoppers(); // Pass false or no arg for initial load
+    }
+
+  }, [mounted, authorized, initialHopperLoadAttempted]); // Add initialHopperLoadAttempted to dependencies
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -188,7 +234,7 @@ export default function HomePage() {
               Home Dashboard
             </h1>
             <button
-              onClick={fetchHoppers}
+              onClick={() => fetchHoppers(true)}
               disabled={loadingHoppers}
               className={`px-4 py-2 rounded-md font-medium ${
                 currentThemeIsDark
@@ -199,6 +245,18 @@ export default function HomePage() {
               {loadingHoppers ? 'Refreshing...' : 'Refresh Stats'}
             </button>
           </div>
+
+          {/* Display Total Portfolio Value from loaded hoppers */}
+          {!loadingHoppers && hoppers.length > 0 && !hoppers.every(h => h.error) && (
+            <div className={`mt-2 mb-4 p-4 rounded-md shadow ${currentThemeIsDark ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border`}>
+              <p className={`text-xl font-semibold ${currentThemeIsDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                Current portfolio value: 
+                <span className={`${currentThemeIsDark ? 'text-sky-400' : 'text-sky-600'}`}>
+                  ${totalValue.toFixed(2)}
+                </span>
+              </p>
+            </div>
+          )}
           
           {hopperError && (
             <div className={`p-4 rounded-md ${
@@ -209,7 +267,7 @@ export default function HomePage() {
           )}
 
           {/* Total Value Graph */}
-          <TotalValueGraph totalValue={totalValue} isDarkMode={currentThemeIsDark} />
+          <WealthHistoryGraph isDarkMode={currentThemeIsDark} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {hoppers.map((hopper) => (

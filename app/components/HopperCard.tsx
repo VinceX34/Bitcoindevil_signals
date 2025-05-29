@@ -46,9 +46,15 @@ const assetImageMap: Record<string, string> = {
 };
 
 const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
-  const formatValue = (value: string) => {
+  const formatValue = (value: string, forceTwoDecimals = false) => {
     const num = parseFloat(value);
     if (isNaN(num)) return '0.00';
+    if (forceTwoDecimals) {
+      return num.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
     return num.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 8,
@@ -113,7 +119,7 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
           <div className={`text-right flex-shrink-0 ${isDarkMode ? 'text-[#e0e0e0]' : 'text-gray-800'}`}>
             <p className="text-xs font-medium">Total Value</p>
             <p className="text-base font-bold">
-              ${formatValue(hopper.total_cur)}
+              ${formatValue(hopper.total_cur, true)}
             </p>
           </div>
         </div>

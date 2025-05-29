@@ -51,6 +51,13 @@ export interface QueuedSignal {
   error_message: string | null;
 }
 
+// New Type for Wealth Snapshots
+export interface WealthSnapshot {
+  id: number;
+  snapshot_at: string; // ISO string format from the database
+  total_value_usd: number;
+}
+
 // ---------- Algemene Query Helper (Gebruikt .query()) ---------------------
 /**
  * Voert een enkele SQL query uit.
