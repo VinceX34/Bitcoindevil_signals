@@ -10,13 +10,6 @@ const MAX_RETRY_ATTEMPTS = 3; // Maximum number of retry attempts
 
 const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-interface QueuePayload {
-  original_tv_signal_id: number | null;
-  hopper_id: string;
-  access_token: string;
-  payload_to_ch_api: any;
-}
-
 export async function GET() {
   console.log('Worker process-ch-queue invoked.');
   let tasksProcessedThisRun = 0;
@@ -24,7 +17,6 @@ export async function GET() {
   try {
     for (let i = 0; i < MAX_TASKS_PER_WORKER_RUN; i++) {
       const taskResult = await executeTransaction(async (executeQueryInTransaction) => {
-        // 1. Get oldest pending or retryable failed task and lock it
         const pendingTasks = await executeQueryInTransaction(
           `SELECT * FROM cryptohopper_queue 
            WHERE (status = 'pending' OR (status = 'failed' AND attempts < $1))
@@ -42,7 +34,6 @@ export async function GET() {
 
         console.log(`[Worker] Processing task ID: ${taskToProcess.id}, Attempt: ${taskToProcess.attempts + 1}`);
 
-        // 2. Mark as processing
         await executeQueryInTransaction(
           'UPDATE cryptohopper_queue SET status = $1, attempts = attempts + 1, last_attempt_at = NOW() WHERE id = $2',
           ['processing', taskToProcess.id]
@@ -59,8 +50,10 @@ export async function GET() {
       const currentTask = taskResult.task;
       tasksProcessedThisRun++;
 
-      // 3. Process the task (API call to CryptoHopper)
       const { original_tv_signal_id, hopper_id, exchange_name, access_token, payload_to_ch_api, task_sub_id } = currentTask.payload as QueuedSignalPayload;
+
+      console.log(`[Worker Task ${currentTask.id}] PREPARING CALL. Hopper ID: ${hopper_id}, Exchange: ${exchange_name}, TV Signal ID: ${original_tv_signal_id}.${task_sub_id}, AccessToken Length: ${access_token?.length}`);
+      
       const cryptoHopperApiUrl = `https://api.cryptohopper.com/v1/hopper/${hopper_id}/order`;
 
       let chApiStatus: 'SUCCESS' | 'FAILURE' = 'FAILURE';
@@ -68,26 +61,38 @@ export async function GET() {
       let chApiResponse: any = null;
 
       try {
-        console.log(`[Worker Task ${currentTask.id}] Calling CH API for ${hopper_id}.`);
+        console.log(`[Worker Task ${currentTask.id}] ATTEMPTING FETCH to: ${cryptoHopperApiUrl} for Hopper ID: ${hopper_id}. Payload: ${JSON.stringify(payload_to_ch_api)}`);
+        
         const r = await fetch(cryptoHopperApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'access-token': access_token },
           body: JSON.stringify(payload_to_ch_api),
         });
-        chApiResponse = await r.json().catch(() => ({ response_parse_error: "CH JSON parse error" }));
+
+        console.log(`[Worker Task ${currentTask.id}] FETCH COMPLETED for Hopper ID: ${hopper_id}. HTTP Status: ${r.status}, OK: ${r.ok}`);
+        
+        chApiResponse = await r.json().catch((jsonParseError) => {
+          console.error(`[Worker Task ${currentTask.id}] JSON PARSE ERROR for Hopper ID: ${hopper_id}. Error: ${jsonParseError.message}`);
+          return { 
+            response_parse_error: "CH JSON parse error", 
+            error_details: jsonParseError.message 
+          };
+        });
+
         chApiStatus = r.ok ? 'SUCCESS' : 'FAILURE';
         if (!r.ok) {
           chApiError = chApiResponse?.error ?? chApiResponse?.message ?? JSON.stringify(chApiResponse);
         }
       } catch (e: any) {
+        console.error(`[Worker Task ${currentTask.id}] FETCH CATCH BLOCK ERROR for Hopper ID: ${hopper_id}. Error: ${e.message}`);
         chApiError = e.message;
-        chApiResponse = { error_message: chApiError };
+        chApiResponse = { fetch_error: e.message };
       }
       
       if(chApiStatus === 'SUCCESS'){
-        console.log(`[Worker Task ${currentTask.id}] CH API Success for ${hopper_id}.`);
+        console.log(`[Worker Task ${currentTask.id}] CH API CALL SUCCESS for Hopper ID: ${hopper_id}. Response:`, JSON.stringify(chApiResponse, null, 2));
       } else {
-        console.error(`[Worker Task ${currentTask.id}] CH API Error for ${hopper_id}: ${chApiError}`, chApiResponse);
+        console.error(`[Worker Task ${currentTask.id}] CH API CALL ERROR for Hopper ID: ${hopper_id}. Error: ${chApiError}. Full Response:`, JSON.stringify(chApiResponse, null, 2));
       }
 
       // 4. Log result in forwarded_signals
@@ -112,7 +117,6 @@ export async function GET() {
 
       console.log(`[Worker Task ${currentTask.id}] Processed. Final queue status: ${finalQueueTaskStatus}.`);
 
-      // 6. Wait the required delay before processing the next task
       if (i < MAX_TASKS_PER_WORKER_RUN - 1) {
         console.log(`[Worker] Waiting ${TIME_BETWEEN_API_CALLS_MS}ms before next task processing.`);
         await delay(TIME_BETWEEN_API_CALLS_MS);
