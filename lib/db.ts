@@ -25,18 +25,22 @@ export interface ForwardedSignal {
   status: 'SUCCESS' | 'FAILURE' | 'DB_LOG_FAILURE' | 'SKIPPED_API_BUSY'; // Zorg dat deze types alle mogelijke statussen dekken
   error_message: string | null;
   hopper_id: string;
+  exchange_name: string;
   created_at: string; // ISO-string
   db_log_status?: 'DB_LOG_FAILURE'; // Optioneel als je dit specifiek wilt tracken
 }
 
+export interface QueuedSignalPayload {
+  original_tv_signal_id: number | null;
+  hopper_id: string;
+  exchange_name: string;
+  access_token: string;
+  payload_to_ch_api: any;
+}
+
 export interface QueuedSignal {
   id: number;
-  payload: {
-    original_tv_signal_id: number | null;
-    hopper_id: string;
-    access_token: string;
-    payload_to_ch_api: any;
-  };
+  payload: QueuedSignalPayload;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   attempts: number;
   created_at: string;

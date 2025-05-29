@@ -77,9 +77,14 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
                   className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
                 >
                   <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
-                    <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
-                      ID: {signal.id}
-                    </span>
+                    <div>
+                      <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
+                        ID: {signal.id}
+                      </span>
+                      <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-2 py-1 rounded ml-2`}>
+                        Hopper: {signal.hopper_id} ({signal.exchange_name})
+                      </span>
+                    </div>
                     <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
                       {new Date(signal.created_at).toLocaleString()}
                     </span>

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/worker/process-ch-queue/route.ts
 import { NextResponse } from 'next/server';
-import { executeQuery, executeTransaction, QueuedSignal } from '@/lib/db';
+import { executeQuery, executeTransaction, QueuedSignal, QueuedSignalPayload } from '@/lib/db';
 
 // Constants
 const TIME_BETWEEN_API_CALLS_MS = 20000; // 20 seconds between API calls
@@ -60,7 +60,7 @@ export async function GET() {
       tasksProcessedThisRun++;
 
       // 3. Process the task (API call to CryptoHopper)
-      const { original_tv_signal_id, hopper_id, access_token, payload_to_ch_api } = currentTask.payload;
+      const { original_tv_signal_id, hopper_id, exchange_name, access_token, payload_to_ch_api } = currentTask.payload as QueuedSignalPayload;
       const cryptoHopperApiUrl = `https://api.cryptohopper.com/v1/hopper/${hopper_id}/order`;
 
       let chApiStatus: 'SUCCESS' | 'FAILURE' = 'FAILURE';
@@ -93,9 +93,9 @@ export async function GET() {
       // 4. Log result in forwarded_signals
       try {
         await executeQuery(
-          `INSERT INTO forwarded_signals (tradingview_signal_id, tradingview_payload, cryptohopper_payload, cryptohopper_response, status, error_message, hopper_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-          [original_tv_signal_id, JSON.stringify(currentTask.payload), JSON.stringify(payload_to_ch_api), JSON.stringify(chApiResponse), chApiStatus, chApiError, hopper_id]
+          `INSERT INTO forwarded_signals (tradingview_signal_id, tradingview_payload, cryptohopper_payload, cryptohopper_response, status, error_message, hopper_id, exchange_name)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+          [original_tv_signal_id, JSON.stringify(currentTask.payload), JSON.stringify(payload_to_ch_api), JSON.stringify(chApiResponse), chApiStatus, chApiError, hopper_id, exchange_name]
         );
       } catch (dbLogErr: any) {
         console.error(`[Worker Task ${currentTask.id}] Error logging to forwarded_signals: ${dbLogErr.message}.`);

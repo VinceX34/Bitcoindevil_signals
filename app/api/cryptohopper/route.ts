@@ -6,6 +6,7 @@ import { executeQuery as executeQuery } from '@/lib/db'; // Of hoe je het ook no
 
 interface CryptoHopperTaskDetails {
   hopper_id: string;
+  exchange_name: string;
   access_token: string;
   payload_to_ch_api: any;
 }
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     for (const taskDetails of tasks) {
       const queuePayload = {
         original_tv_signal_id: original_tradingview_signal_id,
-        ...taskDetails // Bevat hopper_id, access_token, payload_to_ch_api
+        ...taskDetails // Bevat hopper_id, exchange_name, access_token, payload_to_ch_api
       };
 
       await executeQuery( // Gebruik hier je standaard query functie

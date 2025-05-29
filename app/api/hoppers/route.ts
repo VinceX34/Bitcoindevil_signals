@@ -1,14 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// All hopper IDs + their friendly exchange name for display
-const HOPPER_CONFIGS = [
-  { id: '1403066', exchange: 'Bitvavo' },
-  { id: '1506523', exchange: 'Bybit' },
-  { id: '1455342', exchange: 'Kucoin' },
-  { id: '1790517', exchange: 'Kraken' },
-  { id: '1808770', exchange: 'Crypto.com' },
-  { id: '1817774', exchange: 'Coinbase' },
-];
+import { HOPPER_CONFIGS } from '@/lib/hopperConfig';
 
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

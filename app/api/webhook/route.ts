@@ -2,6 +2,7 @@
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';
+import { HOPPER_CONFIGS, HopperConfig } from '@/lib/hopperConfig';
 
 /** Asynchroon doorsturen naar /api/cryptohopper  */
 async function forwardToCryptoHopper(
@@ -20,30 +21,19 @@ async function forwardToCryptoHopper(
     return;
   }
 
-  // ------------------------------------------------------------------------------------
-  // VASTE TARGET HOPPER ID(s)
-  // Omdat je TradingView signaal geen bot_id bevat en je de targets in de backend bepaalt.
-  // Voor nu één ID, maar je kunt dit uitbreiden naar een array van meerdere vaste ID's.
-  // ------------------------------------------------------------------------------------
-  const fixedTargetHopperIds: string[] = [
-    '1659172', // Jouw vaste hopper ID
-    // Als je later naar meerdere vaste hoppers wilt sturen, voeg ze hier toe:
-    // 'ANOTHER_HOPPER_ID',
-    // 'YET_ANOTHER_HOPPER_ID',
-  ];
-  // ------------------------------------------------------------------------------------
-
-  // Als er om een of andere reden geen vaste hopper ID's zijn gedefinieerd (zou niet moeten gebeuren met bovenstaande), stop hier.
-  if (fixedTargetHopperIds.length === 0) {
+  // Gebruik nu de HOPPER_CONFIGS uit de gedeelde file
+  if (!HOPPER_CONFIGS || HOPPER_CONFIGS.length === 0) {
     console.error(
-      'Webhook → forwardToCryptoHopper: Kritiek - Geen vaste target hopper IDs gedefinieerd in de code. Signaal wordt niet doorgestuurd.',
+      'Webhook → forwardToCryptoHopper: Kritiek - Geen target hopper IDs gedefinieerd in HOPPER_CONFIGS. Signaal wordt niet doorgestuurd.',
     );
     return;
   }
 
-  // Maak een 'task' voor elke targetHopperId uit de vaste lijst.
-  const tasksForCryptohopper = fixedTargetHopperIds.map((hopperId) => ({
-    hopper_id: hopperId,
+  // Maak een 'task' voor elke hopper in HOPPER_CONFIGS.
+  // De payload naar /api/cryptohopper bevat nu ook de exchange naam.
+  const tasksForCryptohopper = HOPPER_CONFIGS.map((hopper: HopperConfig) => ({
+    hopper_id: hopper.id,
+    exchange_name: hopper.exchange, // Voeg exchange naam toe
     access_token: cryptohopperAccessToken,
     payload_to_ch_api: { ...signalPayloadFromTradingView },
   }));
@@ -55,7 +45,7 @@ async function forwardToCryptoHopper(
   };
 
   console.log(
-    `Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV signal ID ${savedSignalId}. Target hoppers: ${fixedTargetHopperIds.join(', ')}`,
+    `Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV signal ID ${savedSignalId}. Target hoppers: ${HOPPER_CONFIGS.map(h => h.id).join(', ')}`,
   );
 
   // Verstuur de taken naar de /api/cryptohopper route
