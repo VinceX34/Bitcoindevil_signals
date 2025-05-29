@@ -29,13 +29,14 @@ async function forwardToCryptoHopper(
     return;
   }
 
-  // Maak een 'task' voor elke hopper in HOPPER_CONFIGS.
-  // De payload naar /api/cryptohopper bevat nu ook de exchange naam.
+  // De payload naar /api/cryptohopper bevat nu ook de exchange naam en task_sub_id.
+  let subIdCounter = 1;
   const tasksForCryptohopper = HOPPER_CONFIGS.map((hopper: HopperConfig) => ({
     hopper_id: hopper.id,
     exchange_name: hopper.exchange, // Voeg exchange naam toe
     access_token: cryptohopperAccessToken,
     payload_to_ch_api: { ...signalPayloadFromTradingView },
+    task_sub_id: subIdCounter++, // Add task_sub_id
   }));
 
   // Het object dat naar /api/cryptohopper wordt gestuurd

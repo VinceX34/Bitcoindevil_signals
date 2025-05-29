@@ -1,6 +1,7 @@
 // components/ForwardedSignalsDisplay.tsx
 import React, { useState } from 'react';
 import { ForwardedSignal } from '../../lib/db';
+import { HOPPER_CONFIGS } from '../../lib/hopperConfig';
 
 interface Props {
   signals: ForwardedSignal[];
@@ -71,31 +72,36 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
             <p className={`p-4 ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>No signals to display yet. Waiting for new data...</p>
           ) : (
             <div className="max-h-[600px] overflow-y-auto space-y-2 p-2">
-              {signals.map((signal) => (
-                <div
-                  key={signal.id}
-                  className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
-                >
-                  <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
-                    <div>
-                      <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
-                        ID: {signal.id}
-                      </span>
-                      <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-2 py-1 rounded ml-2`}>
-                        Hopper: {signal.hopper_id} ({signal.exchange_name})
+              {signals.map((signal) => {
+                const exchangeName = signal.exchange_name || 
+                                   HOPPER_CONFIGS.find(hc => hc.id === signal.hopper_id)?.exchange || 
+                                   'Unknown Exchange';
+                return (
+                  <div
+                    key={signal.id}
+                    className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
+                  >
+                    <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
+                      <div>
+                        <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
+                          ID: {signal.tradingview_signal_id}.{signal.task_sub_id}
+                        </span>
+                        <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-2 py-1 rounded ml-2`}>
+                          Hopper: {signal.hopper_id} ({exchangeName})
+                        </span>
+                      </div>
+                      <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
+                        {new Date(signal.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
-                      {new Date(signal.created_at).toLocaleString()}
-                    </span>
+                    <div className="p-3">
+                      <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
+                        {JSON.stringify(signal.cryptohopper_payload, null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
-                      {JSON.stringify(signal.cryptohopper_payload, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

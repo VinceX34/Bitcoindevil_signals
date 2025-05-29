@@ -12,9 +12,9 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM cryptohopper_queue WHERE id = $1', [id]);
       return NextResponse.json<ApiResponse>({ success: true, message: `Queued signal with ID ${id} deleted.` });
     } else {
-      // No ID provided, delete all queued signals
-      await executeQuery('DELETE FROM cryptohopper_queue;');
-      return NextResponse.json<ApiResponse>({ success: true, message: 'All queued signals deleted successfully.' });
+      // No ID provided, delete all queued signals and reset ID sequence
+      await executeQuery('TRUNCATE TABLE cryptohopper_queue RESTART IDENTITY CASCADE;');
+      return NextResponse.json<ApiResponse>({ success: true, message: 'All queued signals deleted and ID sequence restarted.' });
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

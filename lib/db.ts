@@ -17,8 +17,9 @@ export type SimpleTradingViewSignal = {
 };
 
 export interface ForwardedSignal {
-  id: number;
-  tradingview_signal_id: number | null;
+  id: number; // This is the X.Y to be displayed, but actual primary key is different
+  tradingview_signal_id: number | null; // This is X
+  task_sub_id: number | null; // This is Y
   tradingview_payload: any;
   cryptohopper_payload: any;
   cryptohopper_response: any;
@@ -31,7 +32,8 @@ export interface ForwardedSignal {
 }
 
 export interface QueuedSignalPayload {
-  original_tv_signal_id: number | null;
+  original_tv_signal_id: number | null; // This is X
+  task_sub_id: number; // This is Y
   hopper_id: string;
   exchange_name: string;
   access_token: string;
@@ -39,7 +41,7 @@ export interface QueuedSignalPayload {
 }
 
 export interface QueuedSignal {
-  id: number;
+  id: number; // This is the X.Y to be displayed, but actual primary key is different
   payload: QueuedSignalPayload;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   attempts: number;

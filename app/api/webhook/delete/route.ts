@@ -12,9 +12,9 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM tradingview_signals WHERE id = $1', [id]);
       return NextResponse.json<ApiResponse>({ success: true, message: `TradingView signal with ID ${id} deleted.` });
     } else {
-      // No ID provided, delete all TradingView signals
-      await executeQuery('DELETE FROM tradingview_signals;');
-      return NextResponse.json<ApiResponse>({ success: true, message: 'All TradingView signals deleted successfully.' });
+      // No ID provided, delete all TradingView signals and reset ID sequence
+      await executeQuery('TRUNCATE TABLE tradingview_signals RESTART IDENTITY CASCADE;');
+      return NextResponse.json<ApiResponse>({ success: true, message: 'All TradingView signals deleted and ID sequence restarted.' });
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

@@ -76,9 +76,12 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
                   className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
                 >
                   <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
                       <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
-                        ID: {signal.id}
+                        ID: {signal.payload.original_tv_signal_id}.{signal.payload.task_sub_id}
+                      </span>
+                      <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-1`}>
+                        ({signal.payload.exchange_name} - {signal.payload.hopper_id})
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded ${
                         signal.status === 'pending' ? (isDarkMode ? 'bg-[#4d4d4d] text-[#cccccc]' : 'bg-gray-200 text-gray-700') :
@@ -92,7 +95,7 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
                         Attempts: {signal.attempts}
                       </span>
                     </div>
-                    <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'} mt-1 sm:mt-0`}>
                       {new Date(signal.created_at).toLocaleString()}
                     </span>
                   </div>
@@ -101,7 +104,7 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
                       {JSON.stringify(signal.payload.payload_to_ch_api, null, 2)}
                     </pre>
                     {signal.error_message && (
-                      <p className="text-xs text-[#f48771] mt-2">{signal.error_message}</p>
+                      <p className="text-xs text-[#f48771] mt-2">Error: {signal.error_message}</p>
                     )}
                     {signal.last_attempt_at && (
                       <p className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'} mt-1`}>

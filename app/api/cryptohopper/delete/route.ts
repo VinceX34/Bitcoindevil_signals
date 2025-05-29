@@ -12,9 +12,9 @@ export async function DELETE(request: Request) {
       await executeQuery('DELETE FROM forwarded_signals WHERE id = $1', [id]);
       return NextResponse.json<ApiResponse>({ success: true, message: `Forwarded signal with ID ${id} deleted.` });
     } else {
-      // No ID provided, delete all forwarded signals
-      await executeQuery('DELETE FROM forwarded_signals;');
-      return NextResponse.json<ApiResponse>({ success: true, message: 'All forwarded signals deleted successfully.' });
+      // No ID provided, delete all forwarded signals and reset ID sequence
+      await executeQuery('TRUNCATE TABLE forwarded_signals RESTART IDENTITY CASCADE;');
+      return NextResponse.json<ApiResponse>({ success: true, message: 'All forwarded signals deleted and ID sequence restarted.' });
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
