@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
   let requestBody: CryptoHopperRequestBody;
   try {
     requestBody = await req.json();
+    console.log('[API /cryptohopper] Received tasks for queuing:', JSON.stringify(requestBody.tasks, null, 2));
+
     if (!requestBody.tasks || !Array.isArray(requestBody.tasks) || requestBody.tasks.length === 0) {
+      console.error('[API /cryptohopper] Invalid request: tasks array is missing or empty.');
       return NextResponse.json({ success: false, error: 'Invalid request: tasks array is missing or empty.' }, { status: 400 });
     }
   } catch (error) {

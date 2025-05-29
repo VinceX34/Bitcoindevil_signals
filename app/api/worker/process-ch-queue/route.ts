@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery, executeTransaction, QueuedSignal, QueuedSignalPayload } from '@/lib/db';
 
 // Constants
-const TIME_BETWEEN_API_CALLS_MS = 20000; // 20 seconds between API calls
+const TIME_BETWEEN_API_CALLS_MS = 30000; // Increased to 30 seconds
 const MAX_TASKS_PER_WORKER_RUN = 30; // Process up to 30 tasks per run
 const MAX_RETRY_ATTEMPTS = 3; // Maximum number of retry attempts
 
@@ -75,16 +75,29 @@ export async function GET() {
           console.error(`[Worker Task ${currentTask.id}] JSON PARSE ERROR for Hopper ID: ${hopper_id}. Error: ${jsonParseError.message}`);
           return { 
             response_parse_error: "CH JSON parse error", 
-            error_details: jsonParseError.message 
+            error_details: jsonParseError.message,
           };
         });
 
-        chApiStatus = r.ok ? 'SUCCESS' : 'FAILURE';
-        if (!r.ok) {
-          chApiError = chApiResponse?.error ?? chApiResponse?.message ?? JSON.stringify(chApiResponse);
+        if (r.ok) {
+          chApiStatus = 'SUCCESS';
+        } else {
+          chApiStatus = 'FAILURE';
+          if (r.status === 429) {
+            chApiError = `Rate limit (429): ${chApiResponse?.message || 'Rate limit error response from CryptoHopper.'}`;
+          } else {
+            chApiError = chApiResponse?.error ?? chApiResponse?.message ?? `Non-2xx/429 HTTP status: ${r.status}`;
+          }
+          if (typeof chApiResponse !== 'object' || chApiResponse === null) {
+             chApiResponse = { actual_response_body: chApiResponse };
+           }
+           if (!chApiResponse.error && !chApiResponse.message && chApiError) {
+             chApiResponse.effective_error = chApiError;
+           }
         }
       } catch (e: any) {
         console.error(`[Worker Task ${currentTask.id}] FETCH CATCH BLOCK ERROR for Hopper ID: ${hopper_id}. Error: ${e.message}`);
+        chApiStatus = 'FAILURE';
         chApiError = e.message;
         chApiResponse = { fetch_error: e.message };
       }
