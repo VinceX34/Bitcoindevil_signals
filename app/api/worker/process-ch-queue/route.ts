@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery, executeTransaction, QueuedSignal, QueuedSignalPayload } from '@/lib/db';
 
 // Constants
-const TIME_BETWEEN_API_CALLS_MS = 30000; // Increased to 30 seconds
+const TIME_BETWEEN_API_CALLS_MS = 60000; // Increased to 60 seconds (1 minute)
 const MAX_TASKS_PER_WORKER_RUN = 30; // Process up to 30 tasks per run
 const MAX_RETRY_ATTEMPTS = 3; // Maximum number of retry attempts
 
@@ -59,6 +59,7 @@ export async function GET() {
       let chApiStatus: 'SUCCESS' | 'FAILURE' = 'FAILURE';
       let chApiError: string | null = null;
       let chApiResponse: any = null;
+      let httpStatusCode: number | null = null; // Variable to store HTTP status code
 
       try {
         console.log(`[Worker Task ${currentTask.id}] ATTEMPTING FETCH to: ${cryptoHopperApiUrl} for Hopper ID: ${hopper_id}. Payload: ${JSON.stringify(payload_to_ch_api)}`);
@@ -68,6 +69,7 @@ export async function GET() {
           headers: { 'Content-Type': 'application/json', 'access-token': access_token },
           body: JSON.stringify(payload_to_ch_api),
         });
+        httpStatusCode = r.status; // Capture HTTP status code here
 
         console.log(`[Worker Task ${currentTask.id}] FETCH COMPLETED for Hopper ID: ${hopper_id}. HTTP Status: ${r.status}, OK: ${r.ok}`);
         
@@ -111,9 +113,9 @@ export async function GET() {
       // 4. Log result in forwarded_signals
       try {
         await executeQuery(
-          `INSERT INTO forwarded_signals (tradingview_signal_id, task_sub_id, tradingview_payload, cryptohopper_payload, cryptohopper_response, status, error_message, hopper_id, exchange_name)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-          [original_tv_signal_id, task_sub_id, JSON.stringify(currentTask.payload), JSON.stringify(payload_to_ch_api), JSON.stringify(chApiResponse), chApiStatus, chApiError, hopper_id, exchange_name]
+          `INSERT INTO forwarded_signals (tradingview_signal_id, task_sub_id, http_status_code, tradingview_payload, cryptohopper_payload, cryptohopper_response, status, error_message, hopper_id, exchange_name)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+          [original_tv_signal_id, task_sub_id, httpStatusCode, JSON.stringify(currentTask.payload), JSON.stringify(payload_to_ch_api), JSON.stringify(chApiResponse), chApiStatus, chApiError, hopper_id, exchange_name]
         );
       } catch (dbLogErr: any) {
         console.error(`[Worker Task ${currentTask.id}] Error logging to forwarded_signals: ${dbLogErr.message}.`);

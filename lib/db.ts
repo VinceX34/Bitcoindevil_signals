@@ -20,6 +20,7 @@ export interface ForwardedSignal {
   id: number; // This is the X.Y to be displayed, but actual primary key is different
   tradingview_signal_id: number | null; // This is X
   task_sub_id: number | null; // This is Y
+  http_status_code: number | null; // Added HTTP status code
   tradingview_payload: any;
   cryptohopper_payload: any;
   cryptohopper_response: any;

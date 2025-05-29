@@ -89,6 +89,14 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
                         <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-2 py-1 rounded ml-2`}>
                           Hopper: {signal.hopper_id} ({exchangeName})
                         </span>
+                        {signal.http_status_code && (
+                          <span className={`text-xs font-medium px-2 py-1 rounded ml-2 ${
+                            signal.http_status_code >= 200 && signal.http_status_code < 300 ? (isDarkMode ? 'bg-[#2d7d46] text-white' : 'bg-green-100 text-green-700') :
+                            (isDarkMode ? 'bg-[#f48771] text-white' : 'bg-red-100 text-red-700')
+                          }`}>
+                            Status: {signal.http_status_code}
+                          </span>
+                        )}
                       </div>
                       <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
                         {new Date(signal.created_at).toLocaleString()}
