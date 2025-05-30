@@ -7,6 +7,7 @@ import { executeQuery, executeTransaction, QueuedSignal, QueuedSignalPayload } f
 const TIME_BETWEEN_API_CALLS_MS = 60000; // Increased to 60 seconds (1 minute)
 const MAX_TASKS_PER_WORKER_RUN = 30; // Process up to 30 tasks per run
 const MAX_RETRY_ATTEMPTS = 3; // Maximum number of retry attempts
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes backoff for rate limiting
 
 const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -19,7 +20,11 @@ export async function GET() {
       const taskResult = await executeTransaction(async (executeQueryInTransaction) => {
         const pendingTasks = await executeQueryInTransaction(
           `SELECT * FROM cryptohopper_queue 
-           WHERE (status = 'pending' OR (status = 'failed' AND attempts < $1))
+           WHERE (
+             status = 'pending' OR 
+             (status = 'failed' AND attempts < $1) OR
+             (status = 'rate_limited' AND last_attempt_at < NOW() - INTERVAL '5 minutes' AND attempts < $1)
+           )
            ORDER BY created_at ASC 
            LIMIT 1 
            FOR UPDATE SKIP LOCKED`,
@@ -35,7 +40,7 @@ export async function GET() {
         console.log(`[Worker] Processing task ID: ${taskToProcess.id}, Attempt: ${taskToProcess.attempts + 1}`);
 
         await executeQueryInTransaction(
-          'UPDATE cryptohopper_queue SET status = $1, attempts = attempts + 1, last_attempt_at = NOW() WHERE id = $2',
+          'UPDATE cryptohopper_queue SET status = $1, attempts = CASE WHEN $1 = \'processing\' THEN attempts + 1 ELSE attempts END, last_attempt_at = NOW() WHERE id = $2',
           ['processing', taskToProcess.id]
         );
         
@@ -122,13 +127,26 @@ export async function GET() {
       }
 
       // 5. Update task status in cryptohopper_queue
-      const finalQueueTaskStatus = chApiStatus === 'SUCCESS' ? 'completed' : 'failed';
-      await executeQuery(
-        `UPDATE cryptohopper_queue
-         SET status = $1, error_message = $2
-         WHERE id = $3;`,
-        [finalQueueTaskStatus, chApiError, currentTask.id]
-      );
+      const finalQueueTaskStatus = chApiStatus === 'SUCCESS' ? 'completed' : (httpStatusCode === 429 ? 'rate_limited' : 'failed');
+      
+      // Als het rate_limited is, verhoog attempts niet, anders wel (impliciet al gedaan bij 'processing' status update, maar hier expliciet voor 'failed')
+      // De last_attempt_at wordt al gezet bij de 'processing' update.
+      // Voor 'rate_limited' zorgt de SELECT query voor de backoff.
+      if (finalQueueTaskStatus === 'rate_limited') {
+        await executeQuery(
+          `UPDATE cryptohopper_queue
+           SET status = $1, error_message = $2, last_attempt_at = NOW() 
+           WHERE id = $3;`, // attempts blijft gelijk
+          [finalQueueTaskStatus, chApiError, currentTask.id]
+        );
+      } else { // completed or failed (non-429)
+        await executeQuery(
+          `UPDATE cryptohopper_queue
+           SET status = $1, error_message = $2 
+           WHERE id = $3;`, // attempts is al verhoogd bij 'processing'
+          [finalQueueTaskStatus, chApiError, currentTask.id]
+        );
+      }
 
       console.log(`[Worker Task ${currentTask.id}] Processed. Final queue status: ${finalQueueTaskStatus}.`);
 
