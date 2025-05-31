@@ -79,6 +79,10 @@ const Header = () => {
               className={`${linkStyleBase} text-gray-700 hover:text-gray-900} ${pathname === '/signaldashboard' ? 'bg-gray-200 text-gray-900' : ''}`}>
               Signal Dashboard
             </Link>
+            <Link href="/crypto-insights"
+              className={`${linkStyleBase} text-gray-700 hover:text-gray-900} ${pathname === '/crypto-insights' ? 'bg-gray-200 text-gray-900' : ''}`}>
+              Crypto Insights
+            </Link>
           </div>
           <button
             title="Toggle theme"
@@ -111,6 +115,10 @@ const Header = () => {
           <Link href="/signaldashboard"
             className={`${linkStyle} ${pathname === '/signaldashboard' ? activeLinkStyle : ''}`}>
             Signal Dashboard
+          </Link>
+          <Link href="/crypto-insights"
+            className={`${linkStyle} ${pathname === '/crypto-insights' ? activeLinkStyle : ''}`}>
+            Crypto Insights
           </Link>
         </div>
         
