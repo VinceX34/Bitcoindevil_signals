@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Footer from "../components/Footer"; // Assuming you want the footer
-import CryptoChart from "../components/CryptoChart"; // Import the chart component
+import Footer from "../components/Footer";
+// import CryptoChart from "../components/CryptoChart"; // Removed Recharts import
+import TradingViewWidget from "../components/TradingViewWidget"; // Import the new widget
 
 // Placeholder for API data types - will be refined
 interface CryptoData {
@@ -16,11 +17,7 @@ interface CryptoData {
   // Add more fields as needed from CoinGecko API
 }
 
-interface ChartDataPoint {
-  timestamp: number;
-  date: string;
-  price: number;
-}
+// ChartDataPoint interface can be removed if no longer used by other parts
 
 export default function CryptoInsightsPage() {
   const [cryptoData, setCryptoData] = useState<CryptoData[]>([]);
@@ -29,8 +26,8 @@ export default function CryptoInsightsPage() {
   const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
 
   const [selectedCoin, setSelectedCoin] = useState<CryptoData | null>(null);
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [loadingChart, setLoadingChart] = useState(false);
+  // const [chartData, setChartData] = useState<ChartDataPoint[]>([]); // Removed Recharts state
+  // const [loadingChart, setLoadingChart] = useState(false); // Removed Recharts state
 
   useEffect(() => {
     // Detect theme for styling
@@ -71,37 +68,12 @@ export default function CryptoInsightsPage() {
     fetchCryptoData();
   }, []); // Dependency array includes selectedCoin to re-trigger if it changes (but initial load is main goal)
 
-  // Effect to fetch chart data when selectedCoin changes
-  useEffect(() => {
-    if (!selectedCoin) return;
-
-    const fetchChartData = async () => {
-      setLoadingChart(true);
-      try {
-        // Fetch historical data for the last 7 days for the selected coin
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/${selectedCoin.id}/market_chart?vs_currency=usd&days=7`);
-        if (!response.ok) {
-          throw new Error(`CoinGecko API Error: ${response.status} ${response.statusText} for ${selectedCoin.name}`);
-        }
-        const historicalData = await response.json();
-        
-        // Process data for the chart (prices array: [timestamp, price])
-        const processedChartData: ChartDataPoint[] = historicalData.prices.map((pricePoint: [number, number]) => ({
-          timestamp: pricePoint[0],
-          date: new Date(pricePoint[0]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          price: pricePoint[1],
-        }));
-        setChartData(processedChartData);
-      } catch (err: any) {
-        console.error("Error fetching chart data:", err);
-        setChartData([]); // Clear chart on error
-      } finally {
-        setLoadingChart(false);
-      }
-    };
-
-    fetchChartData();
-  }, [selectedCoin]);
+  // Effect for chart data fetching (now for TradingView or can be removed if widget handles its own data)
+  // For now, we rely on the widget itself. If we need to pass more specific data, this can be reinstated.
+  // useEffect(() => {
+  //   if (!selectedCoin) return;
+  //   // Logic to prepare data or symbol for TradingView widget if needed
+  // }, [selectedCoin]);
 
   const handleRowClick = (coin: CryptoData) => {
     setSelectedCoin(coin);
@@ -115,13 +87,14 @@ export default function CryptoInsightsPage() {
             Crypto Insights
           </h1>
           
-          {/* Chart Section */}
           {selectedCoin && (
-            <div className={`${currentThemeIsDark ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border rounded-lg shadow-md mb-8`}>
-              {loadingChart ? 
-                <p className="p-4 text-center">Loading chart for {selectedCoin.name}...</p> : 
-                <CryptoChart data={chartData} coinName={selectedCoin.name} isDarkMode={currentThemeIsDark} />
-              }
+            <div 
+              className={`${currentThemeIsDark ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border rounded-lg shadow-md mb-8 h-[400px] md:h-[500px] lg:h-[600px]`}
+            >
+              <TradingViewWidget 
+                symbol={`${selectedCoin.symbol.toUpperCase()}USD`} 
+                theme={currentThemeIsDark ? 'dark' : 'light'} 
+              />
             </div>
           )}
           
