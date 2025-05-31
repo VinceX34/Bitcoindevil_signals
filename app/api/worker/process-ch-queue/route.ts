@@ -21,9 +21,9 @@ export async function GET() {
         const pendingTasks = await executeQueryInTransaction(
           `SELECT * FROM cryptohopper_queue 
            WHERE (
-             status = 'pending' OR 
-             (status = 'failed' AND attempts < $1) OR
-             (status = 'rate_limited' AND last_attempt_at < NOW() - INTERVAL '5 minutes' AND attempts < $1)
+             status = 'pending'::TEXT OR 
+             (status = 'failed'::TEXT AND attempts < $1) OR
+             (status = 'rate_limited'::TEXT AND last_attempt_at < NOW() - INTERVAL '5 minutes' AND attempts < $1)
            )
            ORDER BY created_at ASC 
            LIMIT 1 
@@ -40,8 +40,12 @@ export async function GET() {
         console.log(`[Worker] Processing task ID: ${taskToProcess.id}, Attempt: ${taskToProcess.attempts + 1}`);
 
         await executeQueryInTransaction(
-          'UPDATE cryptohopper_queue SET status = $1, attempts = CASE WHEN $1 = \'processing\' THEN attempts + 1 ELSE attempts END, last_attempt_at = NOW() WHERE id = $2',
-          ['processing', taskToProcess.id]
+          `UPDATE cryptohopper_queue
+           SET status = 'processing',
+               attempts = attempts + 1,
+               last_attempt_at = NOW()
+           WHERE id = $1`,
+          [taskToProcess.id]
         );
         
         return { processed: true, task: taskToProcess };
