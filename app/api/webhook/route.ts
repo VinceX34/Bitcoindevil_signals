@@ -10,56 +10,65 @@ async function forwardToCryptoHopper(
   savedSignalId: number,
   baseUrl: string,
 ): Promise<void> {
+  const webhookCallId = Math.random().toString(36).substring(7); // Unieke ID voor deze specifieke forward poging
+  console.log(`[Webhook FW ${webhookCallId}] Attempting to forward TV Signal ID ${savedSignalId}. BaseURL: ${baseUrl}`);
+
   const url = `${baseUrl}/api/cryptohopper`;
 
-  // De Cryptohopper access token is altijd hetzelfde en wordt uit environment variables gehaald.
   const cryptohopperAccessToken = process.env.CRYPTOHOPPER_ACCESS_TOKEN;
   if (!cryptohopperAccessToken) {
     console.error(
-      'FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld in de environment variables. Kan signaal niet doorsturen.',
+      `[Webhook FW ${webhookCallId}] FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`,
     );
     return;
   }
+  console.log(`[Webhook FW ${webhookCallId}] Access token found.`);
 
-  // Gebruik nu de HOPPER_CONFIGS uit de gedeelde file
   if (!HOPPER_CONFIGS || HOPPER_CONFIGS.length === 0) {
     console.error(
-      'Webhook → forwardToCryptoHopper: Kritiek - Geen target hopper IDs gedefinieerd in HOPPER_CONFIGS. Signaal wordt niet doorgestuurd.',
+      `[Webhook FW ${webhookCallId}] Kritiek - Geen target hopper IDs gedefinieerd in HOPPER_CONFIGS. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd. Config:`, HOPPER_CONFIGS
     );
     return;
   }
+  console.log(`[Webhook FW ${webhookCallId}] Hopper configs found: ${HOPPER_CONFIGS.length} entries.`);
 
-  // De payload naar /api/cryptohopper bevat nu ook de exchange naam en task_sub_id.
   let subIdCounter = 1;
   const tasksForCryptohopper = HOPPER_CONFIGS.map((hopper: HopperConfig) => ({
     hopper_id: hopper.id,
-    exchange_name: hopper.exchange, // Voeg exchange naam toe
-    access_token: cryptohopperAccessToken,
+    exchange_name: hopper.exchange,
+    access_token: cryptohopperAccessToken, // Behoud voor potentieel later gebruik, ook al gebruikt /api/cryptohopper het momenteel niet direct
     payload_to_ch_api: { ...signalPayloadFromTradingView },
-    task_sub_id: subIdCounter++, // Add task_sub_id
+    task_sub_id: subIdCounter++,
   }));
 
-  // Het object dat naar /api/cryptohopper wordt gestuurd
   const bodyForCryptohopperRoute = {
     original_tradingview_signal_id: savedSignalId,
     tasks: tasksForCryptohopper,
   };
 
   console.log(
-    `Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV signal ID ${savedSignalId}. Target hoppers: ${HOPPER_CONFIGS.map(h => h.id).join(', ')}`,
+    `[Webhook FW ${webhookCallId}] Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV Signal ID ${savedSignalId}. Target hoppers: ${HOPPER_CONFIGS.map(h => h.id).join(', ')}. Body for /api/cryptohopper:`, JSON.stringify(bodyForCryptohopperRoute, null, 2)
   );
 
-  // Verstuur de taken naar de /api/cryptohopper route
-  await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(bodyForCryptohopperRoute),
-  }).catch((e) =>
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyForCryptohopperRoute),
+    });
+    console.log(`[Webhook FW ${webhookCallId}] Response status from POST to ${url} (TV Signal ID ${savedSignalId}): ${response.status}`);
+    if (!response.ok) {
+      const responseBody = await response.text();
+      console.error(`[Webhook FW ${webhookCallId}] Error response from ${url} (TV Signal ID ${savedSignalId}, Status: ${response.status}):`, responseBody);
+    } else {
+      console.log(`[Webhook FW ${webhookCallId}] Successfully called ${url} for TV Signal ID ${savedSignalId}.`);
+    }
+  } catch (e: any) {
     console.error(
-      `Webhook → forwardToCryptoHopper: Netwerk- of parsefout bij het aanroepen van ${url}`,
-      e,
-    ),
-  );
+      `[Webhook FW ${webhookCallId}] NETWERKFOUT of andere exceptie bij aanroepen van ${url} voor TV Signal ID ${savedSignalId}:`, 
+      e.message, e.stack
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

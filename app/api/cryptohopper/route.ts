@@ -18,17 +18,31 @@ interface CryptoHopperRequestBody {
 }
 
 export async function POST(req: NextRequest) {
+  const cryptohopperRouteCallId = Math.random().toString(36).substring(7);
+  console.log(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Received POST request.`);
+  
+  let rawRequestBodyText: string | null = null;
   let requestBody: CryptoHopperRequestBody;
+
   try {
-    requestBody = await req.json();
-    console.log('[API /cryptohopper] Received tasks for queuing:', JSON.stringify(requestBody.tasks, null, 2));
+    rawRequestBodyText = await req.text(); // Lees eerst als tekst voor logging
+    console.log(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Raw request body:`, rawRequestBodyText);
+    
+    // Probeer te parsen nadat het als tekst is gelogd
+    if (!rawRequestBodyText) {
+      console.error(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Empty request body received.`);
+      return NextResponse.json({ success: false, error: 'Empty request body' }, { status: 400 });
+    }
+
+    requestBody = JSON.parse(rawRequestBodyText);
+    console.log(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Parsed tasks for queuing:`, JSON.stringify(requestBody.tasks, null, 2));
 
     if (!requestBody.tasks || !Array.isArray(requestBody.tasks) || requestBody.tasks.length === 0) {
-      console.error('[API /cryptohopper] Invalid request: tasks array is missing or empty.');
-      return NextResponse.json({ success: false, error: 'Invalid request: tasks array is missing or empty.' }, { status: 400 });
+      console.error(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Invalid request: tasks array is missing, not an array, or empty after parsing. Parsed body:`, JSON.stringify(requestBody, null, 2));
+      return NextResponse.json({ success: false, error: 'Invalid request: tasks array is missing or empty after parsing.' }, { status: 400 });
     }
-  } catch (error) {
-    console.error('Invalid JSON payload for /api/cryptohopper:', error);
+  } catch (error: any) { // expliciet any type voor error object
+    console.error(`[API /cryptohopper RQ ${cryptohopperRouteCallId}] Error parsing JSON payload for /api/cryptohopper:`, error.message, error.stack, "Raw body was:", rawRequestBodyText);
     return NextResponse.json({ success: false, error: 'Invalid JSON payload for /api/cryptohopper' }, { status: 400 });
   }
 
