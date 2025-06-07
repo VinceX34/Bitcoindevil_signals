@@ -7,7 +7,7 @@ interface SignalsDisplayProps {
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
-  onDelete: () => void;
+  onDelete: () => Promise<void> | void;
   isDarkMode: boolean;
 }
 
@@ -23,20 +23,12 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete all TradingView signals?')) return;
-
     setIsDeleting(true);
     try {
-      const response = await fetch('/api/webhook/delete', { method: 'DELETE' });
-      const data = await response.json();
-      if (data.success) {
-        onDelete(); 
-      } else {
-        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
-      }
-    } catch {
-      console.error('Error deleting TradingView signals:');
-      alert('Error deleting signals. Check console for details.');
+      await onDelete();
+    } catch (error) {
+      console.error('The onDelete handler failed:', error);
+      alert('The delete operation failed. Please check the console for more details.');
     } finally {
       setIsDeleting(false);
     }
@@ -70,26 +62,34 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
             <p className={`p-4 ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>No signals to display yet. Waiting for new data...</p>
           ) : (
             <div className="max-h-[600px] overflow-y-auto space-y-2 p-2">
-              {signals.map((signal) => (
-                <div
-                  key={signal.id}
-                  className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
-                >
-                  <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
-                    <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
-                      ID: {signal.id}
-                    </span>
-                    <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
-                      {new Date(signal.received_at).toLocaleString()}
-                    </span>
+              {signals.map((signal) => {
+                const isBtcGroup = signal.signal_group === 'btc';
+                const idColor = isBtcGroup ? 'bg-orange-600' : 'bg-[#0e639c]';
+                
+                return (
+                  <div
+                    key={`${signal.signal_group || 'default'}-${signal.id}`}
+                    className={`${isDarkMode ? 'bg-[#1e1e1e] border-[#3c3c3c] hover:bg-[#2a2d2e]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'} border rounded-md transition-colors`}
+                  >
+                    <div className="flex justify-between items-center p-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-mono text-white px-2 py-1 rounded ${idColor}`}>
+                          ID: {signal.id}
+                        </span>
+                        {isBtcGroup && <span className="text-xs font-bold text-orange-500">[BTC Group]</span>}
+                      </div>
+                      <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
+                        {new Date(signal.received_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="p-3">
+                      <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
+                        {JSON.stringify(signal.raw_data, null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                  <div className="p-3">
-                    <pre className={`${isDarkMode ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-50 text-gray-800'} p-3 rounded text-xs overflow-x-auto font-mono`}>
-                      {JSON.stringify(signal.raw_data, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

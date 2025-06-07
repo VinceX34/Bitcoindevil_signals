@@ -7,7 +7,7 @@ interface Props {
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
-  onDelete: () => void;
+  onDelete: () => Promise<void> | void;
   isDarkMode: boolean;
 }
 
@@ -23,20 +23,12 @@ const QueuedSignalsDisplay: React.FC<Props> = ({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete all queued signals?')) return;
-    
     setIsDeleting(true);
     try {
-      const response = await fetch('/api/queue/delete', { method: 'DELETE' }); 
-      const data = await response.json();
-      if (data.success) {
-        onDelete();
-      } else {
-        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
-      }
-    } catch {
-      console.error('Error deleting queued signals:');
-      alert('Error deleting signals. Check console for details.');
+      await onDelete();
+    } catch (error) {
+      console.error('The onDelete handler for queued signals failed:', error);
+      alert('The delete operation failed. Please check the console for more details.');
     } finally {
       setIsDeleting(false);
     }

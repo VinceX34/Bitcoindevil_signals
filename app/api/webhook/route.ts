@@ -2,42 +2,40 @@
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';
-import { HOPPER_CONFIGS, HopperConfig } from '@/lib/hopperConfig';
+import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HopperConfig } from '@/lib/hopperConfig';
 
-/** Asynchroon doorsturen naar /api/cryptohopper  */
+/** Asynchroon doorsturen naar de juiste /api/cryptohopper... route */
 async function forwardToCryptoHopper(
-  signalPayloadFromTradingView: any,
+  signalPayload: any,
   savedSignalId: number,
   baseUrl: string,
 ): Promise<void> {
-  const webhookCallId = Math.random().toString(36).substring(7); // Unieke ID voor deze specifieke forward poging
-  console.log(`[Webhook FW ${webhookCallId}] Attempting to forward TV Signal ID ${savedSignalId}. BaseURL: ${baseUrl}`);
+  const signalGroup = signalPayload.signal_group || 'default';
+  const webhookCallId = Math.random().toString(36).substring(7);
+  console.log(`[Webhook FW ${webhookCallId}] Forwarding for signal group: "${signalGroup}", TV Signal ID ${savedSignalId}.`);
 
-  const url = `${baseUrl}/api/cryptohopper`;
+  const isBtcGroup = signalGroup === 'btc';
+  const targetHoppers = isBtcGroup ? HOPPER_CONFIGS_BTC : HOPPER_CONFIGS;
+  const targetApiUrl = isBtcGroup ? `${baseUrl}/api/cryptohopper-btc` : `${baseUrl}/api/cryptohopper`;
 
   const cryptohopperAccessToken = process.env.CRYPTOHOPPER_ACCESS_TOKEN;
   if (!cryptohopperAccessToken) {
-    console.error(
-      `[Webhook FW ${webhookCallId}] FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`,
-    );
+    console.error(`[Webhook FW ${webhookCallId}] FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`);
     return;
   }
-  console.log(`[Webhook FW ${webhookCallId}] Access token found.`);
-
-  if (!HOPPER_CONFIGS || HOPPER_CONFIGS.length === 0) {
-    console.error(
-      `[Webhook FW ${webhookCallId}] Kritiek - Geen target hopper IDs gedefinieerd in HOPPER_CONFIGS. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd. Config:`, HOPPER_CONFIGS
-    );
+  
+  if (!targetHoppers || targetHoppers.length === 0) {
+    console.error(`[Webhook FW ${webhookCallId}] Kritiek - Geen target hopper IDs gedefinieerd voor signal group "${signalGroup}". TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`);
     return;
   }
-  console.log(`[Webhook FW ${webhookCallId}] Hopper configs found: ${HOPPER_CONFIGS.length} entries.`);
+  console.log(`[Webhook FW ${webhookCallId}] Hopper configs found for group "${signalGroup}": ${targetHoppers.length} entries.`);
 
   let subIdCounter = 1;
-  const tasksForCryptohopper = HOPPER_CONFIGS.map((hopper: HopperConfig) => ({
+  const tasksForCryptohopper = targetHoppers.map((hopper: HopperConfig) => ({
     hopper_id: hopper.id,
     exchange_name: hopper.exchange,
-    access_token: cryptohopperAccessToken, // Behoud voor potentieel later gebruik, ook al gebruikt /api/cryptohopper het momenteel niet direct
-    payload_to_ch_api: { ...signalPayloadFromTradingView },
+    access_token: cryptohopperAccessToken,
+    payload_to_ch_api: { ...signalPayload },
     task_sub_id: subIdCounter++,
   }));
 
@@ -47,25 +45,25 @@ async function forwardToCryptoHopper(
   };
 
   console.log(
-    `[Webhook FW ${webhookCallId}] Forwarding ${tasksForCryptohopper.length} task(s) to ${url} for TV Signal ID ${savedSignalId}. Target hoppers: ${HOPPER_CONFIGS.map(h => h.id).join(', ')}. Body for /api/cryptohopper:`, JSON.stringify(bodyForCryptohopperRoute, null, 2)
+    `[Webhook FW ${webhookCallId}] Forwarding ${tasksForCryptohopper.length} task(s) to ${targetApiUrl} for TV Signal ID ${savedSignalId}.`
   );
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(targetApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bodyForCryptohopperRoute),
     });
-    console.log(`[Webhook FW ${webhookCallId}] Response status from POST to ${url} (TV Signal ID ${savedSignalId}): ${response.status}`);
+    console.log(`[Webhook FW ${webhookCallId}] Response status from POST to ${targetApiUrl} (TV Signal ID ${savedSignalId}): ${response.status}`);
     if (!response.ok) {
       const responseBody = await response.text();
-      console.error(`[Webhook FW ${webhookCallId}] Error response from ${url} (TV Signal ID ${savedSignalId}, Status: ${response.status}):`, responseBody);
+      console.error(`[Webhook FW ${webhookCallId}] Error response from ${targetApiUrl} (TV Signal ID ${savedSignalId}, Status: ${response.status}):`, responseBody);
     } else {
-      console.log(`[Webhook FW ${webhookCallId}] Successfully called ${url} for TV Signal ID ${savedSignalId}.`);
+      console.log(`[Webhook FW ${webhookCallId}] Successfully called ${targetApiUrl} for TV Signal ID ${savedSignalId}.`);
     }
   } catch (e: any) {
     console.error(
-      `[Webhook FW ${webhookCallId}] NETWERKFOUT of andere exceptie bij aanroepen van ${url} voor TV Signal ID ${savedSignalId}:`, 
+      `[Webhook FW ${webhookCallId}] NETWERKFOUT of andere exceptie bij aanroepen van ${targetApiUrl} voor TV Signal ID ${savedSignalId}:`, 
       e.message, e.stack
     );
   }
@@ -121,11 +119,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const signalGroup = signalFromTradingView.signal_group || 'default';
+  const isBtcGroup = signalGroup === 'btc';
+
   //----------------------------------------------------------------
-  // 2. Opslaan in tradingview_signals
+  // 2. Opslaan in de juiste tradingview_signals tabel
   //----------------------------------------------------------------
+  const targetTable = isBtcGroup ? 'tradingview_signals_btc' : 'tradingview_signals';
   const insertQuery = `
-    INSERT INTO tradingview_signals (raw_data)
+    INSERT INTO ${targetTable} (raw_data)
     VALUES ($1)
     RETURNING id, raw_data, received_at;
   `;
@@ -135,9 +137,9 @@ export async function POST(req: NextRequest) {
     const dataToStore = JSON.stringify(signalFromTradingView);
     const rows = await executeQuery(insertQuery, [dataToStore]);
     savedSignalRecord = rows[0];
-    console.log(`TradingView signal (ID: ${savedSignalRecord.id}) opgeslagen in database. Data: ${dataToStore}`);
+    console.log(`TradingView signal (ID: ${savedSignalRecord.id}) opgeslagen in tabel "${targetTable}". Data: ${dataToStore}`);
   } catch (e: any) {
-    console.error('Webhook: DB-fout bij opslaan TradingView signaal', e);
+    console.error(`Webhook: DB-fout bij opslaan TradingView signaal in tabel "${targetTable}"`, e);
     return NextResponse.json(
       { success: false, error: 'DB insert failed for TradingView signal', details: e.message },
       { status: 500 },

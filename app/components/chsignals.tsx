@@ -6,6 +6,7 @@ import { HOPPER_CONFIGS } from '../../lib/hopperConfig';
 interface Props {
   signals: ForwardedSignal[];
   title?: string;
+  headerColor?: string;
   isOpen: boolean;
   onToggle: () => void;
   className?: string;
@@ -16,6 +17,7 @@ interface Props {
 const ForwardedSignalsDisplay: React.FC<Props> = ({
   signals,
   title = "Forwarded Signals",
+  headerColor = "bg-[#0e639c]",
   isOpen,
   onToggle,
   className = "",
@@ -83,7 +85,7 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
                   >
                     <div className={`flex justify-between items-start p-3 border-b ${isDarkMode ? 'border-[#3c3c3c]' : 'border-gray-200'}`}>
                       <div>
-                        <span className="text-xs font-mono bg-[#0e639c] text-white px-2 py-1 rounded">
+                        <span className={`text-xs font-mono text-white px-2 py-1 rounded ${headerColor}`}>
                           ID: {signal.tradingview_signal_id}.{signal.task_sub_id}
                         </span>
                         <span className={`text-xs font-mono ${isDarkMode ? 'text-[#b0b0b0]' : 'text-gray-600'} px-2 py-1 rounded ml-2`}>

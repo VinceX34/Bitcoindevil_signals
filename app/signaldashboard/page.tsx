@@ -23,85 +23,133 @@ const getInitialAuthState = () => {
 };
 
 export default function SignalDashboardPage() {
-  const [authorized, setAuthorized] = useState(getInitialAuthState());
   const router = useRouter();
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const [isRawSignalsOpen, setIsRawSignalsOpen] = useState(true);
-  const [isForwardedSignalsOpen, setIsForwardedSignalsOpen] = useState(true);
-  const [isQueuedSignalsOpen, setIsQueuedSignalsOpen] = useState(true);
-
+  // --- Default Signal States ---
   const [raw, setRaw] = useState<SimpleTradingViewSignal[]>([]);
   const [forwarded, setForwarded] = useState<ForwardedSignal[]>([]);
   const [queued, setQueued] = useState<QueuedSignal[]>([]);
+  
+  // --- BTC Signal States ---
+  const [forwardedBtc, setForwardedBtc] = useState<ForwardedSignal[]>([]);
+  const [queuedBtc, setQueuedBtc] = useState<QueuedSignal[]>([]);
 
-  const handleRawSignalsDelete = () => setRaw([]);
-  const handleForwardedSignalsDelete = () => setForwarded([]);
-  const handleQueuedSignalsDelete = () => setQueued([]);
+  // --- UI States ---
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [isRawSignalsOpen, setRawSignalsOpen] = useState(true);
+  const [isForwardedSignalsOpen, setForwardedSignalsOpen] = useState(true);
+  const [isQueuedSignalsOpen, setQueuedSignalsOpen] = useState(true);
+  const [isForwardedBtcSignalsOpen, setForwardedBtcSignalsOpen] = useState(true);
+  const [isQueuedBtcSignalsOpen, setQueuedBtcSignalsOpen] = useState(true);
+  const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
 
-  const handleProcessQueue = async () => {
-    setIsProcessingQueue(true);
+  const fetchData = async () => {
     try {
-      const response = await fetch('/api/worker/process-ch-queue');
-      const data = await response.json();
-      if (data.success) {
-        const [r1, r2, r3] = await Promise.all([
-          fetch("/api/webhook").then((r) => r.json()),
-          fetch("/api/cryptohopper").then((r) => r.json()),
-          fetch("/api/queue").then((r) => r.json()),
-        ]);
-        if (r1.success) setRaw(r1.signals);
-        if (r2.success) setForwarded(r2.signals);
-        if (r3.success) setQueued(r3.signals);
-      } else {
-        alert('Failed to process queue: ' + (data.error || 'Unknown error'));
+      // Fetch default signals
+      const [rawRes, forwardedRes, queuedRes] = await Promise.all([
+        fetch('/api/webhook'),
+        fetch('/api/cryptohopper'),
+        fetch('/api/queue')
+      ]);
+      const rawData = await rawRes.json();
+      const forwardedData = await forwardedRes.json();
+      const queuedData = await queuedRes.json();
+      
+      // Fetch BTC signals
+      const [rawBtcRes, forwardedBtcRes, queuedBtcRes] = await Promise.all([
+        fetch('/api/webhook-btc'), // Fetch raw BTC signals
+        fetch('/api/cryptohopper-btc'),
+        fetch('/api/queue-btc')
+      ]);
+      const rawBtcData = await rawBtcRes.json();
+      const forwardedBtcData = await forwardedBtcRes.json();
+      const queuedBtcData = await queuedBtcRes.json();
+      
+      // Combine and sort raw signals
+      let combinedRawSignals: SimpleTradingViewSignal[] = [];
+      if (rawData.success) {
+        // Add group identifier to default signals
+        const defaultRaw = rawData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'default' }));
+        combinedRawSignals = combinedRawSignals.concat(defaultRaw);
       }
-    } catch {
-      console.error('Error processing queue');
-      alert('Error processing queue. Check console for details.');
-    } finally {
-      setIsProcessingQueue(false);
+      if (rawBtcData.success) {
+        // Add group identifier to btc signals
+        const btcRaw = rawBtcData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'btc' }));
+        combinedRawSignals = combinedRawSignals.concat(btcRaw);
+      }
+      combinedRawSignals.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+      
+      setRaw(combinedRawSignals);
+      if (forwardedData.success) setForwarded(forwardedData.signals);
+      if (queuedData.success) setQueued(queuedData.signals);
+      if (forwardedBtcData.success) setForwardedBtc(forwardedBtcData.signals);
+      if (queuedBtcData.success) setQueuedBtc(queuedBtcData.signals);
+
+    } catch (error) {
+      console.error("Failed to fetch signal data:", error);
     }
   };
 
   useEffect(() => {
-    if (!authorized) {
+    setMounted(true);
+    const isAuth = getInitialAuthState();
+    setAuthorized(isAuth);
+    if (!isAuth) {
       router.push('/');
-      return;
+    } else {
+      fetchData();
     }
-    const load = async () => {
-      try {
-        const [r1, r2, r3] = await Promise.all([
-          fetch("/api/webhook").then((r) => r.json()),
-          fetch("/api/cryptohopper").then((r) => r.json()),
-          fetch("/api/queue").then((r) => r.json()),
-        ]);
-        if (r1.success) setRaw(r1.signals);
-        if (r2.success) setForwarded(r2.signals);
-        if (r3.success) setQueued(r3.signals);
-      } catch { /* swallow */ }
-    };
-    load();
-    const id = setInterval(load, 10_000);
-    return () => clearInterval(id);
-  }, [authorized, router]);
-
-  const toggleRawSignals = () => setIsRawSignalsOpen(!isRawSignalsOpen);
-  const toggleForwardedSignals = () => setIsForwardedSignalsOpen(!isForwardedSignalsOpen);
-  const toggleQueuedSignals = () => setIsQueuedSignalsOpen(!isQueuedSignalsOpen);
+  }, [router]);
   
-  const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
-    });
+    if (!authorized) return;
+    const interval = setInterval(fetchData, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [authorized]);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setCurrentThemeIsDark(document.documentElement.classList.contains('dark')));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     setCurrentThemeIsDark(document.documentElement.classList.contains('dark'));
     return () => observer.disconnect();
   }, []);
 
-  if (!authorized) {
-    return null;
+  const handleProcessQueue = async (group: 'default' | 'btc') => {
+    setIsProcessingQueue(true);
+    const url = group === 'btc' ? '/api/worker/process-ch-queue-btc' : '/api/worker/process-ch-queue';
+    try {
+      await fetch(url);
+      await fetchData(); // Refresh data after processing
+    } catch (error) {
+      console.error(`Error processing ${group} queue:`, error);
+    } finally {
+      setIsProcessingQueue(false);
+    }
+  };
+
+  const createDeleteHandler = (apiPath: string) => async () => {
+    if (!confirm(`Are you sure you want to delete all signals from ${apiPath}?`)) return;
+    await fetch(apiPath, { method: 'DELETE' });
+    await fetchData();
+  };
+
+  const deleteAllRawSignals = async () => {
+    if (!confirm(`Are you sure you want to delete ALL raw signals from BOTH groups?`)) return;
+    await Promise.all([
+      fetch('/api/webhook/delete', { method: 'DELETE' }),
+      fetch('/api/webhook-btc', { method: 'DELETE' })
+    ]);
+    await fetchData();
+  }
+
+  if (!mounted || !authorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading & checking authorization...</p>
+      </div>
+    );
   }
 
   return (
@@ -109,46 +157,63 @@ export default function SignalDashboardPage() {
       <main className={`flex-grow p-4 lg:p-8 ${currentThemeIsDark ? 'bg-[#1e1e1e] text-[#cccccc]' : 'bg-gray-100 text-gray-800'}`}>
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h1 className="text-3xl font-semibold">
-              Signal Dashboard
-            </h1>
+            <h1 className="text-3xl font-semibold">Signal Dashboard</h1>
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleProcessQueue}
-                disabled={isProcessingQueue}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${isProcessingQueue ? 'opacity-50 cursor-not-allowed' : ''} ${currentThemeIsDark ? 'bg-[#3c3c3c] hover:bg-[#4f4f4f] text-[#cccccc]' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-              >
-                {isProcessingQueue ? 'Processing...' : 'Process Queue'}
-              </button>
+              <button onClick={() => handleProcessQueue('default')} disabled={isProcessingQueue}>Process Default Queue</button>
+              <button onClick={() => handleProcessQueue('btc')} disabled={isProcessingQueue}>Process BTC Queue</button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <SignalsDisplay
-              signals={raw}
-              isOpen={isRawSignalsOpen}
-              onToggle={toggleRawSignals}
-              onDelete={handleRawSignalsDelete}
-              isDarkMode={currentThemeIsDark}
-              className="lg:col-span-1"
-            />
-            <ForwardedSignalsDisplay
-              signals={forwarded}
-              isOpen={isForwardedSignalsOpen}
-              onToggle={toggleForwardedSignals}
-              onDelete={handleForwardedSignalsDelete}
-              isDarkMode={currentThemeIsDark}
-              className="lg:col-span-1"
-            />
-            <QueuedSignalsDisplay
-              signals={queued}
-              isOpen={isQueuedSignalsOpen}
-              onToggle={toggleQueuedSignals}
-              onDelete={handleQueuedSignalsDelete}
-              isDarkMode={currentThemeIsDark}
-              className="lg:col-span-1"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Column for Default Signals */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-center">Default Signal Group</h2>
+              <ForwardedSignalsDisplay
+                signals={forwarded}
+                isOpen={isForwardedSignalsOpen}
+                onToggle={() => setForwardedSignalsOpen(!isForwardedSignalsOpen)}
+                onDelete={createDeleteHandler('/api/cryptohopper/delete')}
+                isDarkMode={currentThemeIsDark}
+              />
+              <QueuedSignalsDisplay
+                signals={queued}
+                isOpen={isQueuedSignalsOpen}
+                onToggle={() => setQueuedSignalsOpen(!isQueuedSignalsOpen)}
+                onDelete={createDeleteHandler('/api/queue/delete')}
+                isDarkMode={currentThemeIsDark}
+              />
+            </div>
+
+            {/* Column for BTC Signals */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-center">BTC Signal Group</h2>
+              <ForwardedSignalsDisplay
+                signals={forwardedBtc}
+                title="Forwarded Signals (BTC Group)"
+                headerColor="bg-orange-600" // New orange color!
+                isOpen={isForwardedBtcSignalsOpen}
+                onToggle={() => setForwardedBtcSignalsOpen(!isForwardedBtcSignalsOpen)}
+                onDelete={createDeleteHandler('/api/cryptohopper-btc/delete')}
+                isDarkMode={currentThemeIsDark}
+              />
+              <QueuedSignalsDisplay
+                signals={queuedBtc}
+                title="Queued Signals (BTC Group)"
+                isOpen={isQueuedBtcSignalsOpen}
+                onToggle={() => setQueuedBtcSignalsOpen(!isQueuedBtcSignalsOpen)}
+                onDelete={createDeleteHandler('/api/queue-btc')}
+                isDarkMode={currentThemeIsDark}
+              />
+            </div>
           </div>
+
+          <SignalsDisplay
+            signals={raw}
+            isOpen={isRawSignalsOpen}
+            onToggle={() => setRawSignalsOpen(!isRawSignalsOpen)}
+            onDelete={deleteAllRawSignals}
+            isDarkMode={currentThemeIsDark}
+          />
         </div>
       </main>
       <Footer isDarkMode={currentThemeIsDark} />

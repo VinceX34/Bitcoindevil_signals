@@ -7,6 +7,13 @@ export const HOPPER_CONFIGS = [
   { id: '1817774', exchange: 'Coinbase' },
 ];
 
+export const HOPPER_CONFIGS_BTC = [
+  { id: '1989465', exchange: 'Coinbase - EUR' },
+  { id: '1989473', exchange: 'Coinbase - USDC' },
+  { id: '1989528', exchange: 'Bybit - USDC' }, // Assuming USDXC was a typo for USDC
+  { id: '1989545', exchange: 'Kucoin - USDC' },
+];
+
 export interface HopperConfig {
   id: string;
   exchange: string;
