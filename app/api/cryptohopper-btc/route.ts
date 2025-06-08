@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { original_tradingview_signal_id, tasks } = requestBody;
+  console.log(`[API /cryptohopper-btc RQ ${cryptohopperRouteCallId}] Processing ${tasks.length} task(s) for TV signal ID: ${original_tradingview_signal_id}. Payload:`, JSON.stringify(requestBody, null, 2));
   let enqueuedCount = 0;
 
   try {
