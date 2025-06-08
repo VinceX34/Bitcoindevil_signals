@@ -1,7 +1,12 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
       "path": "/api/worker/process-ch-queue",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/worker/process-ch-queue-btc",
       "schedule": "*/1 * * * *"
     }
   ]
