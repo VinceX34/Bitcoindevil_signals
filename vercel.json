@@ -8,6 +8,10 @@
     {
       "path": "/api/worker/process-ch-queue-btc",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/worker/process-ch-queue-ai",
+      "schedule": "*/1 * * * *"
     }
   ]
 }

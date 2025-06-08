@@ -2,7 +2,16 @@
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';
-import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HopperConfig } from '@/lib/hopperConfig';
+import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI, HopperConfig } from '@/lib/hopperConfig';
+
+/** Helper to normalize signal_group values */
+function normalizeSignalGroup(input: any): 'default' | 'btc' | 'ai' {
+  if (!input || typeof input !== 'string') return 'default';
+  const value = input.trim().toLowerCase();
+  if (value === 'btc') return 'btc';
+  if (value === 'ai') return 'ai';
+  return 'default';
+}
 
 /** Asynchroon doorsturen naar de juiste /api/cryptohopper... route */
 async function forwardToCryptoHopper(
@@ -10,13 +19,26 @@ async function forwardToCryptoHopper(
   savedSignalId: number,
   baseUrl: string,
 ): Promise<void> {
-  const signalGroup = signalPayload.signal_group || 'default';
+  const signalGroup = normalizeSignalGroup(signalPayload.signal_group);
   const webhookCallId = Math.random().toString(36).substring(7);
   console.log(`[Webhook FW ${webhookCallId}] Forwarding for signal group: "${signalGroup}", TV Signal ID ${savedSignalId}.`);
 
-  const isBtcGroup = signalGroup === 'btc';
-  const targetHoppers = isBtcGroup ? HOPPER_CONFIGS_BTC : HOPPER_CONFIGS;
-  const targetApiUrl = isBtcGroup ? `${baseUrl}/api/cryptohopper-btc` : `${baseUrl}/api/cryptohopper`;
+  let targetHoppers: HopperConfig[];
+  let targetApiUrl: string;
+
+  switch (signalGroup) {
+    case 'btc':
+      targetHoppers = HOPPER_CONFIGS_BTC;
+      targetApiUrl = `${baseUrl}/api/cryptohopper-btc`;
+      break;
+    case 'ai':
+      targetHoppers = HOPPER_CONFIGS_AI;
+      targetApiUrl = `${baseUrl}/api/cryptohopper-ai`;
+      break;
+    default:
+      targetHoppers = HOPPER_CONFIGS;
+      targetApiUrl = `${baseUrl}/api/cryptohopper`;
+  }
 
   const cryptohopperAccessToken = process.env.CRYPTOHOPPER_ACCESS_TOKEN;
   if (!cryptohopperAccessToken) {
@@ -84,8 +106,10 @@ export async function POST(req: NextRequest) {
   //----------------------------------------------------------------
   let signalFromTradingView: any;
   let rawTextPayload = '';
+  console.log('[Webhook POST] Request received. Starting body processing.');
   try {
     rawTextPayload = await req.text();
+    console.log('[Webhook POST] Raw payload received:', rawTextPayload);
     if (rawTextPayload) {
       try {
         signalFromTradingView = JSON.parse(rawTextPayload);
@@ -120,13 +144,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const signalGroup = signalFromTradingView.signal_group || 'default';
-  const isBtcGroup = signalGroup === 'btc';
-
+  const signalGroup = normalizeSignalGroup(signalFromTradingView.signal_group);
+  console.log(`[Webhook POST] Final determined signal_group: "${signalGroup}"`);
+  
   //----------------------------------------------------------------
   // 2. Opslaan in de juiste tradingview_signals tabel
   //----------------------------------------------------------------
-  const targetTable = isBtcGroup ? 'tradingview_signals_btc' : 'tradingview_signals';
+  let targetTable: string;
+  switch(signalGroup) {
+    case 'btc':
+      targetTable = 'tradingview_signals_btc';
+      break;
+    case 'ai':
+      targetTable = 'tradingview_signals_ai';
+      break;
+    default:
+      targetTable = 'tradingview_signals';
+  }
+
   const insertQuery = `
     INSERT INTO ${targetTable} (raw_data)
     VALUES ($1)

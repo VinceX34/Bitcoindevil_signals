@@ -31,15 +31,9 @@ const ForwardedSignalsDisplay: React.FC<Props> = ({
     
     setIsDeleting(true);
     try {
-      const response = await fetch('/api/cryptohopper/delete', { method: 'DELETE' });
-      const data = await response.json();
-      if (data.success) {
-        onDelete();
-      } else {
-        alert('Failed to delete signals: ' + (data.error || 'Unknown error'));
-      }
-    } catch {
-      console.error('Error deleting forwarded signals:');
+      await onDelete();
+    } catch (error) {
+      console.error('Error deleting forwarded signals:', error);
       alert('Error deleting signals. Check console for details.');
     } finally {
       setIsDeleting(false);

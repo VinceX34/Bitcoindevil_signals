@@ -14,7 +14,7 @@ export type SimpleTradingViewSignal = {
   id: number;
   raw_data: any;
   received_at: string; // ISO-string
-  signal_group?: 'default' | 'btc'; // Add signal_group property
+  signal_group?: 'default' | 'btc' | 'ai'; // Added 'ai' group
 };
 
 export interface ForwardedSignal {

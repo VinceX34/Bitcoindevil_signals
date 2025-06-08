@@ -64,7 +64,9 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
             <div className="max-h-[600px] overflow-y-auto space-y-2 p-2">
               {signals.map((signal) => {
                 const isBtcGroup = signal.signal_group === 'btc';
+                const isAiGroup = signal.signal_group === 'ai';
                 const idColor = isBtcGroup ? 'bg-orange-600' : 'bg-[#0e639c]';
+                const finalIdColor = isAiGroup ? 'bg-purple-600' : idColor;
                 
                 return (
                   <div
@@ -73,10 +75,11 @@ const SignalsDisplay: React.FC<SignalsDisplayProps> = ({
                   >
                     <div className="flex justify-between items-center p-3">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-mono text-white px-2 py-1 rounded ${idColor}`}>
+                        <span className={`text-xs font-mono text-white px-2 py-1 rounded ${finalIdColor}`}>
                           ID: {signal.id}
                         </span>
                         {isBtcGroup && <span className="text-xs font-bold text-orange-500">[BTC Group]</span>}
+                        {isAiGroup && <span className="text-xs font-bold text-purple-600">[AI Group]</span>}
                       </div>
                       <span className={`text-xs ${isDarkMode ? 'text-[#808080]' : 'text-gray-500'}`}>
                         {new Date(signal.received_at).toLocaleString()}

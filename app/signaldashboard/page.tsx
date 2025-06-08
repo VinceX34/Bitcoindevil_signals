@@ -36,6 +36,10 @@ export default function SignalDashboardPage() {
   const [forwardedBtc, setForwardedBtc] = useState<ForwardedSignal[]>([]);
   const [queuedBtc, setQueuedBtc] = useState<QueuedSignal[]>([]);
 
+  // --- AI Signal States ---
+  const [forwardedAi, setForwardedAi] = useState<ForwardedSignal[]>([]);
+  const [queuedAi, setQueuedAi] = useState<QueuedSignal[]>([]);
+
   // --- UI States ---
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [isRawSignalsOpen, setRawSignalsOpen] = useState(true);
@@ -43,6 +47,8 @@ export default function SignalDashboardPage() {
   const [isQueuedSignalsOpen, setQueuedSignalsOpen] = useState(true);
   const [isForwardedBtcSignalsOpen, setForwardedBtcSignalsOpen] = useState(true);
   const [isQueuedBtcSignalsOpen, setQueuedBtcSignalsOpen] = useState(true);
+  const [isForwardedAiSignalsOpen, setForwardedAiSignalsOpen] = useState(true);
+  const [isQueuedAiSignalsOpen, setQueuedAiSignalsOpen] = useState(true);
   const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
 
   const fetchData = async () => {
@@ -59,13 +65,23 @@ export default function SignalDashboardPage() {
       
       // Fetch BTC signals
       const [rawBtcRes, forwardedBtcRes, queuedBtcRes] = await Promise.all([
-        fetch('/api/webhook-btc'), // Fetch raw BTC signals
+        fetch('/api/webhook-btc'),
         fetch('/api/cryptohopper-btc'),
         fetch('/api/queue-btc')
       ]);
       const rawBtcData = await rawBtcRes.json();
       const forwardedBtcData = await forwardedBtcRes.json();
       const queuedBtcData = await queuedBtcRes.json();
+      
+      // Fetch AI signals
+      const [rawAiRes, forwardedAiRes, queuedAiRes] = await Promise.all([
+        fetch('/api/webhook-ai'),
+        fetch('/api/cryptohopper-ai'),
+        fetch('/api/queue-ai')
+      ]);
+      const rawAiData = await rawAiRes.json();
+      const forwardedAiData = await forwardedAiRes.json();
+      const queuedAiData = await queuedAiRes.json();
       
       // Combine and sort raw signals
       let combinedRawSignals: SimpleTradingViewSignal[] = [];
@@ -79,6 +95,10 @@ export default function SignalDashboardPage() {
         const btcRaw = rawBtcData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'btc' }));
         combinedRawSignals = combinedRawSignals.concat(btcRaw);
       }
+      if (rawAiData.success) {
+        const aiRaw = rawAiData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'ai' }));
+        combinedRawSignals = combinedRawSignals.concat(aiRaw);
+      }
       combinedRawSignals.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
       
       setRaw(combinedRawSignals);
@@ -86,6 +106,8 @@ export default function SignalDashboardPage() {
       if (queuedData.success) setQueued(queuedData.signals);
       if (forwardedBtcData.success) setForwardedBtc(forwardedBtcData.signals);
       if (queuedBtcData.success) setQueuedBtc(queuedBtcData.signals);
+      if (forwardedAiData.success) setForwardedAi(forwardedAiData.signals);
+      if (queuedAiData.success) setQueuedAi(queuedAiData.signals);
 
     } catch (error) {
       console.error("Failed to fetch signal data:", error);
@@ -116,9 +138,11 @@ export default function SignalDashboardPage() {
     return () => observer.disconnect();
   }, []);
 
-  const handleProcessQueue = async (group: 'default' | 'btc') => {
+  const handleProcessQueue = async (group: 'default' | 'btc' | 'ai') => {
     setIsProcessingQueue(true);
-    const url = group === 'btc' ? '/api/worker/process-ch-queue-btc' : '/api/worker/process-ch-queue';
+    const url = group === 'btc' ? '/api/worker/process-ch-queue-btc'
+                : group === 'ai' ? '/api/worker/process-ch-queue-ai'
+                : '/api/worker/process-ch-queue';
     try {
       await fetch(url);
       await fetchData(); // Refresh data after processing
@@ -136,10 +160,11 @@ export default function SignalDashboardPage() {
   };
 
   const deleteAllRawSignals = async () => {
-    if (!confirm(`Are you sure you want to delete ALL raw signals from BOTH groups?`)) return;
+    if (!confirm(`Are you sure you want to delete ALL raw signals from ALL groups?`)) return;
     await Promise.all([
       fetch('/api/webhook/delete', { method: 'DELETE' }),
-      fetch('/api/webhook-btc', { method: 'DELETE' })
+      fetch('/api/webhook-btc', { method: 'DELETE' }),
+      fetch('/api/webhook-ai', { method: 'DELETE' })
     ]);
     await fetchData();
   }
@@ -161,10 +186,11 @@ export default function SignalDashboardPage() {
             <div className="flex items-center gap-4">
               <button onClick={() => handleProcessQueue('default')} disabled={isProcessingQueue}>Process Default Queue</button>
               <button onClick={() => handleProcessQueue('btc')} disabled={isProcessingQueue}>Process BTC Queue</button>
+              <button onClick={() => handleProcessQueue('ai')} disabled={isProcessingQueue}>Process AI Queue</button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Column for Default Signals */}
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-center">Default Signal Group</h2>
@@ -199,9 +225,33 @@ export default function SignalDashboardPage() {
               <QueuedSignalsDisplay
                 signals={queuedBtc}
                 title="Queued Signals (BTC Group)"
+                headerColor="bg-orange-600"
                 isOpen={isQueuedBtcSignalsOpen}
                 onToggle={() => setQueuedBtcSignalsOpen(!isQueuedBtcSignalsOpen)}
                 onDelete={createDeleteHandler('/api/queue-btc')}
+                isDarkMode={currentThemeIsDark}
+              />
+            </div>
+
+            {/* Column for AI Signals */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-center">AI Signal Group</h2>
+              <ForwardedSignalsDisplay
+                signals={forwardedAi}
+                title="Forwarded Signals (AI Group)"
+                headerColor="bg-purple-600"
+                isOpen={isForwardedAiSignalsOpen}
+                onToggle={() => setForwardedAiSignalsOpen(!isForwardedAiSignalsOpen)}
+                onDelete={createDeleteHandler('/api/cryptohopper-ai/delete')}
+                isDarkMode={currentThemeIsDark}
+              />
+              <QueuedSignalsDisplay
+                signals={queuedAi}
+                title="Queued Signals (AI Group)"
+                headerColor="bg-purple-600"
+                isOpen={isQueuedAiSignalsOpen}
+                onToggle={() => setQueuedAiSignalsOpen(!isQueuedAiSignalsOpen)}
+                onDelete={createDeleteHandler('/api/queue-ai')}
                 isDarkMode={currentThemeIsDark}
               />
             </div>
