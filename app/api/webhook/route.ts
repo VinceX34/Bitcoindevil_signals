@@ -42,6 +42,7 @@ async function forwardToCryptoHopper(
   const bodyForCryptohopperRoute = {
     original_tradingview_signal_id: savedSignalId,
     tasks: tasksForCryptohopper,
+    signal_group: signalGroup,
   };
 
   console.log(
