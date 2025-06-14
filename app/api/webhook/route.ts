@@ -261,3 +261,31 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+const PLACEHOLDER_HOPPERS = {
+  default: [
+    { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1506523', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1455342', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1790517', name: 'Loading...', exchange: 'Kraken', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1808770', name: 'Loading...', exchange: 'Crypto.com', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1817774', name: 'Loading...', exchange: 'Coinbase', total_cur: '0', error: true, assets: {}, image: null },
+  ],
+  btc: [
+    { id: '1989465', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1989473', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1989528', name: 'Loading...', exchange: 'Bybit - USDC', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1989545', name: 'Loading...', exchange: 'Kucoin - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  ],
+  ai: [
+    { id: '1992610', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1992607', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1992597', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
+    { id: '1992599', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  ]
+};
+
+const totalValue = Object.values(PLACEHOLDER_HOPPERS).flat().reduce((sum, hopper) => {
+  const value = Number(hopper.total_cur) || 0;
+  return sum + value;
+}, 0);

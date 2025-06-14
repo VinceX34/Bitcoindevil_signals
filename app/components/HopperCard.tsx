@@ -21,7 +21,10 @@ interface Props {
 
 const getLargeExchangeImage = (exchangeName?: string): string => {
   if (!exchangeName) return '/devil_full_white.png'; // Default large image if exchange is unknown
-  const normalizedExchange = exchangeName.toLowerCase();
+  
+  // Remove any suffixes like "- EUR" or "- USDC" from the exchange name
+  const baseExchangeName = exchangeName.split(' - ')[0].toLowerCase();
+  
   const map: Record<string, string> = {
     'bitvavo': '/Smart-DCA-bitvavo.jpg',
     'bybit': '/smart-dca-bybit.jpg',
@@ -33,7 +36,7 @@ const getLargeExchangeImage = (exchangeName?: string): string => {
     'coinbasepro': '/Smart-DCA-coinbase.jpg', // Alias for Coinbase
     // Add any other exchange to image mappings here
   };
-  return map[normalizedExchange] || '/devil_full_white.png'; // Fallback to default if no specific mapping
+  return map[baseExchangeName] || '/devil_full_white.png'; // Fallback to default if no specific mapping
 };
 
 // Map for asset images (small icons)
