@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/cryptohopper-btc/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
+import { executeQuery, executeTransaction } from '@/lib/db';
 import { ApiResponse } from '@/lib/types';
 
 interface CryptoHopperTaskDetails {
@@ -43,25 +43,33 @@ export async function POST(req: NextRequest) {
 
   const { original_tradingview_signal_id, tasks } = requestBody;
   console.log(`[API /cryptohopper-btc RQ ${cryptohopperRouteCallId}] Processing ${tasks.length} task(s) for TV signal ID: ${original_tradingview_signal_id}. Payload:`, JSON.stringify(requestBody, null, 2));
-  let enqueuedCount = 0;
 
   try {
-    for (const taskDetails of tasks) {
-      const queuePayload = {
-        original_tv_signal_id: original_tradingview_signal_id,
-        ...taskDetails,
-      };
-      await executeQuery(
-        `INSERT INTO cryptohopper_queue_btc (payload) VALUES ($1);`,
-        [JSON.stringify(queuePayload)]
-      );
-      enqueuedCount++;
-    }
+    // Use a transaction to ensure all tasks are queued or none are
+    const result = await executeTransaction(async (executeQueryInTransaction) => {
+      let enqueuedCount = 0;
+      
+      for (const taskDetails of tasks) {
+        const queuePayload = {
+          original_tv_signal_id: original_tradingview_signal_id,
+          ...taskDetails
+        };
 
-    console.log(`[API /cryptohopper-btc RQ ${cryptohopperRouteCallId}] ${enqueuedCount} BTC task(s) enqueued for original TV signal ID: ${original_tradingview_signal_id || 'N/A'}`);
+        await executeQueryInTransaction(
+          `INSERT INTO cryptohopper_queue_btc (signal_id, signal_group, payload, status, created_at)
+           VALUES ($1, $2, $3, 'pending', NOW());`,
+          [original_tradingview_signal_id, 'btc', JSON.stringify(queuePayload)]
+        );
+        enqueuedCount++;
+      }
+
+      return { enqueuedCount };
+    });
+
+    console.log(`[API /cryptohopper-btc RQ ${cryptohopperRouteCallId}] ${result.enqueuedCount} BTC task(s) enqueued for original TV signal ID: ${original_tradingview_signal_id || 'N/A'}`);
     return NextResponse.json({
       success: true,
-      message: `${enqueuedCount} task(s) successfully enqueued for BTC processing.`,
+      message: `${result.enqueuedCount} task(s) successfully enqueued for BTC processing.`,
     });
 
   } catch (dbError: any) {

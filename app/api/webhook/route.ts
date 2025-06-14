@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, SimpleTradingViewSignal } from '@/lib/db';
+import { executeQuery, executeTransaction, SimpleTradingViewSignal } from '@/lib/db';
 import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI, HopperConfig } from '@/lib/hopperConfig';
 
 /** Helper to normalize signal_group values */
@@ -13,12 +13,61 @@ function normalizeSignalGroup(input: any): 'default' | 'btc' | 'ai' {
   return 'default';
 }
 
+/** Helper to get the correct table name for a signal group */
+function getSignalTableName(signalGroup: 'default' | 'btc' | 'ai'): string {
+  switch (signalGroup) {
+    case 'btc':
+      return 'tradingview_signals_btc';
+    case 'ai':
+      return 'tradingview_signals_ai';
+    default:
+      return 'tradingview_signals';
+  }
+}
+
+/** Helper to acquire a lock for signal processing */
+async function acquireLock(signalGroup: 'default' | 'btc' | 'ai', lockId: string): Promise<boolean> {
+  try {
+    // Try to acquire the lock
+    await executeQuery(
+      `INSERT INTO signal_processing_locks (signal_group, locked_by)
+       VALUES ($1, $2)
+       ON CONFLICT (signal_group) DO NOTHING;`,
+      [signalGroup, lockId]
+    );
+    
+    // Check if we got the lock
+    const result = await executeQuery(
+      `SELECT locked_by FROM signal_processing_locks WHERE signal_group = $1;`,
+      [signalGroup]
+    );
+    
+    return result[0]?.locked_by === lockId;
+  } catch (error) {
+    console.error(`Error acquiring lock for ${signalGroup}:`, error);
+    return false;
+  }
+}
+
+/** Helper to release a lock */
+async function releaseLock(signalGroup: 'default' | 'btc' | 'ai', lockId: string): Promise<void> {
+  try {
+    await executeQuery(
+      `DELETE FROM signal_processing_locks 
+       WHERE signal_group = $1 AND locked_by = $2;`,
+      [signalGroup, lockId]
+    );
+  } catch (error) {
+    console.error(`Error releasing lock for ${signalGroup}:`, error);
+  }
+}
+
 /** Asynchroon doorsturen naar de juiste /api/cryptohopper... route */
 async function forwardToCryptoHopper(
   signalPayload: any,
   savedSignalId: number,
   baseUrl: string,
-): Promise<void> {
+): Promise<{ success: boolean; error?: string }> {
   const signalGroup = normalizeSignalGroup(signalPayload.signal_group);
   const webhookCallId = Math.random().toString(36).substring(7);
   console.log(`[Webhook FW ${webhookCallId}] Forwarding for signal group: "${signalGroup}", TV Signal ID ${savedSignalId}.`);
@@ -42,13 +91,15 @@ async function forwardToCryptoHopper(
 
   const cryptohopperAccessToken = process.env.CRYPTOHOPPER_ACCESS_TOKEN;
   if (!cryptohopperAccessToken) {
-    console.error(`[Webhook FW ${webhookCallId}] FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`);
-    return;
+    const error = `[Webhook FW ${webhookCallId}] FATAL: CRYPTOHOPPER_ACCESS_TOKEN is niet ingesteld. TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`;
+    console.error(error);
+    return { success: false, error };
   }
   
   if (!targetHoppers || targetHoppers.length === 0) {
-    console.error(`[Webhook FW ${webhookCallId}] Kritiek - Geen target hopper IDs gedefinieerd voor signal group "${signalGroup}". TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`);
-    return;
+    const error = `[Webhook FW ${webhookCallId}] Kritiek - Geen target hopper IDs gedefinieerd voor signal group "${signalGroup}". TV Signal ID ${savedSignalId} wordt NIET doorgestuurd.`;
+    console.error(error);
+    return { success: false, error };
   }
   console.log(`[Webhook FW ${webhookCallId}] Hopper configs found for group "${signalGroup}": ${targetHoppers.length} entries.`);
 
@@ -78,17 +129,20 @@ async function forwardToCryptoHopper(
       body: JSON.stringify(bodyForCryptohopperRoute),
     });
     console.log(`[Webhook FW ${webhookCallId}] Response status from POST to ${targetApiUrl} (TV Signal ID ${savedSignalId}): ${response.status}`);
+    
     if (!response.ok) {
       const responseBody = await response.text();
-      console.error(`[Webhook FW ${webhookCallId}] Error response from ${targetApiUrl} (TV Signal ID ${savedSignalId}, Status: ${response.status}):`, responseBody);
-    } else {
-      console.log(`[Webhook FW ${webhookCallId}] Successfully called ${targetApiUrl} for TV Signal ID ${savedSignalId}.`);
+      const error = `[Webhook FW ${webhookCallId}] Error response from ${targetApiUrl} (TV Signal ID ${savedSignalId}, Status: ${response.status}): ${responseBody}`;
+      console.error(error);
+      return { success: false, error };
     }
+    
+    console.log(`[Webhook FW ${webhookCallId}] Successfully called ${targetApiUrl} for TV Signal ID ${savedSignalId}.`);
+    return { success: true };
   } catch (e: any) {
-    console.error(
-      `[Webhook FW ${webhookCallId}] NETWERKFOUT of andere exceptie bij aanroepen van ${targetApiUrl} voor TV Signal ID ${savedSignalId}:`, 
-      e.message, e.stack
-    );
+    const error = `[Webhook FW ${webhookCallId}] NETWERKFOUT of andere exceptie bij aanroepen van ${targetApiUrl} voor TV Signal ID ${savedSignalId}: ${e.message}`;
+    console.error(error, e.stack);
+    return { success: false, error };
   }
 }
 
@@ -96,119 +150,97 @@ async function forwardToCryptoHopper(
 // POST  – ontvangt TradingView-webhook
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  // Determine the base URL from the request headers or environment
-  const protocol = req.headers.get('x-forwarded-proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
-  const host = req.headers.get('host') || process.env.VERCEL_URL || 'localhost:3000'; // VERCEL_URL for Vercel, fallback to host, then localhost
-  const baseUrl = `${protocol}://${host}`;
+  const webhookCallId = Math.random().toString(36).substring(7);
+  console.log(`[Webhook RQ ${webhookCallId}] Received POST request.`);
 
-  //----------------------------------------------------------------
-  // 1. Body uitlezen & JSON parsen
-  //----------------------------------------------------------------
+  let rawRequestBodyText: string | null = null;
   let signalFromTradingView: any;
-  let rawTextPayload = '';
-  console.log('[Webhook POST] Request received. Starting body processing.');
+
   try {
-    rawTextPayload = await req.text();
-    console.log('[Webhook POST] Raw payload received:', rawTextPayload);
-    if (rawTextPayload) {
-      try {
-        signalFromTradingView = JSON.parse(rawTextPayload);
-      } catch (jsonError) {
-        console.error(
-          'Webhook: Kon payload niet als JSON parsen. TradingView stuurde waarschijnlijk geen valide JSON.',
-          { error: jsonError, payload: rawTextPayload },
-        );
-        return NextResponse.json(
-          { success: false, error: 'Invalid JSON payload from TradingView' },
-          { status: 400 },
-        );
-      }
-    } else {
-      console.warn('Webhook: Lege payload ontvangen van TradingView.');
-      signalFromTradingView = {}; // Handel lege payload af
+    rawRequestBodyText = await req.text();
+    if (!rawRequestBodyText) {
+      console.error(`[Webhook RQ ${webhookCallId}] Empty request body received.`);
+      return NextResponse.json({ success: false, error: 'Empty request body' }, { status: 400 });
     }
-  } catch (e) {
-    console.error('Webhook: Fout bij het lezen van de request body', e);
-    return NextResponse.json(
-      { success: false, error: 'Error reading request body' },
-      { status: 400 },
-    );
+    signalFromTradingView = JSON.parse(rawRequestBodyText);
+  } catch (error: any) {
+    console.error(`[Webhook RQ ${webhookCallId}] Error parsing JSON payload:`, error.message);
+    return NextResponse.json({ success: false, error: 'Invalid JSON payload' }, { status: 400 });
   }
 
-  // Valideer of de verwachte velden aanwezig zijn (optioneel maar aanbevolen)
-  if (!signalFromTradingView || typeof signalFromTradingView.order_type !== 'string' || typeof signalFromTradingView.coin !== 'string') {
-    console.error('Webhook: Ontvangen signaal mist vereiste velden (order_type, coin).', { payload: signalFromTradingView });
-    return NextResponse.json(
-      { success: false, error: 'Signal payload missing required fields: order_type, coin' },
-      { status: 400 },
-    );
+  // Validate required fields
+  if (!signalFromTradingView.signal_group || !signalFromTradingView.order_type || !signalFromTradingView.market) {
+    console.error(`[Webhook RQ ${webhookCallId}] Missing required fields in payload:`, signalFromTradingView);
+    return NextResponse.json({ success: false, error: 'Missing required fields in payload' }, { status: 400 });
   }
 
   const signalGroup = normalizeSignalGroup(signalFromTradingView.signal_group);
-  console.log(`[Webhook POST] Final determined signal_group: "${signalGroup}"`);
-  
-  //----------------------------------------------------------------
-  // 2. Opslaan in de juiste tradingview_signals tabel
-  //----------------------------------------------------------------
-  let targetTable: string;
-  switch(signalGroup) {
-    case 'btc':
-      targetTable = 'tradingview_signals_btc';
-      break;
-    case 'ai':
-      targetTable = 'tradingview_signals_ai';
-      break;
-    default:
-      targetTable = 'tradingview_signals';
+  const tableName = getSignalTableName(signalGroup);
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  let savedSignalRecord: any;
+
+  // Try to acquire the lock
+  const lockAcquired = await acquireLock(signalGroup, webhookCallId);
+  if (!lockAcquired) {
+    console.log(`[Webhook RQ ${webhookCallId}] Another request is processing a ${signalGroup} signal. This request will be queued.`);
+    return NextResponse.json({
+      success: true,
+      message: 'Signal received but another signal is being processed. This signal will be processed next.',
+      status: 'queued'
+    });
   }
 
-  const insertQuery = `
-    INSERT INTO ${targetTable} (raw_data)
-    VALUES ($1)
-    RETURNING id, raw_data, received_at;
-  `;
-
-  let savedSignalRecord: SimpleTradingViewSignal;
   try {
-    const dataToStore = JSON.stringify(signalFromTradingView);
-    const rows = await executeQuery(insertQuery, [dataToStore]);
-    savedSignalRecord = rows[0];
-    console.log(`TradingView signal (ID: ${savedSignalRecord.id}) opgeslagen in tabel "${targetTable}". Data: ${dataToStore}`);
-  } catch (e: any) {
-    console.error(`Webhook: DB-fout bij opslaan TradingView signaal in tabel "${targetTable}"`, e);
-    return NextResponse.json(
-      { success: false, error: 'DB insert failed for TradingView signal', details: e.message },
-      { status: 500 },
-    );
+    // Use a transaction to ensure both saving and forwarding are atomic
+    const result = await executeTransaction(async (executeQueryInTransaction) => {
+      // Save the raw signal to the correct table
+      const saveResult = await executeQueryInTransaction(
+        `INSERT INTO ${tableName} (payload) VALUES ($1) RETURNING id;`,
+        [JSON.stringify(signalFromTradingView)]
+      );
+      savedSignalRecord = saveResult[0];
+      
+      // Forward to CryptoHopper
+      const forwardResult = await forwardToCryptoHopper(signalFromTradingView, savedSignalRecord.id, baseUrl);
+      if (!forwardResult.success) {
+        throw new Error(forwardResult.error);
+      }
+      
+      return savedSignalRecord;
+    });
+
+    console.log(`[Webhook RQ ${webhookCallId}] Successfully processed ${signalGroup} signal with ID: ${result.id}`);
+    return NextResponse.json({
+      success: true,
+      message: 'Signal stored & forwarding to Cryptohopper processing triggered',
+      savedSignalId: result.id,
+    });
+
+  } catch (error: any) {
+    console.error(`[Webhook RQ ${webhookCallId}] Error processing signal:`, error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to process signal',
+      details: error.message
+    }, { status: 500 });
+  } finally {
+    // Always release the lock
+    await releaseLock(signalGroup, webhookCallId);
   }
-
-  //----------------------------------------------------------------
-  // 3. Asynchroon doorsturen naar CryptoHopper (via de /api/cryptohopper route)
-  //----------------------------------------------------------------
-  forwardToCryptoHopper(signalFromTradingView, savedSignalRecord.id, baseUrl);
-
-  //----------------------------------------------------------------
-  // 4. Antwoord aan TradingView
-  //----------------------------------------------------------------
-  return NextResponse.json({
-    success: true,
-    message: 'Signal stored & forwarding to Cryptohopper processing triggered',
-    savedSignalId: savedSignalRecord.id,
-  });
 }
 
 // ---------------------------------------------------------------------------
 // GET  – laatste 20 (of aangepaste limiet) opgeslagen TradingView-signalen
 // ---------------------------------------------------------------------------
-export async function GET(req: NextRequest) { // req toegevoegd voor eventuele query params
+export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const limitParam = searchParams.get('limit');
-  let limit = 20; // Default limit
+  let limit = 20;
 
   if (limitParam) {
     const parsedLimit = parseInt(limitParam, 10);
     if (!isNaN(parsedLimit) && parsedLimit > 0) {
-      limit = Math.min(parsedLimit, 500); // Max limiet van 500 om misbruik te voorkomen
+      limit = Math.min(parsedLimit, 500);
     }
   }
 
