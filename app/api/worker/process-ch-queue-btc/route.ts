@@ -5,7 +5,31 @@ import { executeQuery, executeTransaction, QueuedSignal, QueuedSignalPayload } f
 
 const MAX_TASKS_PER_WORKER_RUN = 1;
 const MAX_RETRY_ATTEMPTS = 3;
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes backoff for rate limiting
 export const maxDuration = 75;
+
+/** Check if we can make an API call to CryptoHopper */
+async function canMakeApiCall(): Promise<boolean> {
+  const result = await executeQuery(
+    `SELECT is_limited, limited_until FROM rate_limit_status ORDER BY id DESC LIMIT 1`
+  );
+
+  if (result.length === 0) return true;
+
+  const { is_limited, limited_until } = result[0];
+  if (!is_limited) return true;
+  if (!limited_until) return true;
+
+  return new Date(limited_until) < new Date();
+}
+
+/** Update rate limit status */
+async function updateRateLimitStatus(isLimited: boolean, limitedUntil?: Date): Promise<void> {
+  await executeQuery(
+    `INSERT INTO rate_limit_status (is_limited, limited_until) VALUES ($1, $2)`,
+    [isLimited, limitedUntil]
+  );
+}
 
 export async function GET() {
   const workerRunId = `btc-${Math.random().toString(36).substring(7)}`;
@@ -13,6 +37,12 @@ export async function GET() {
   let tasksProcessedThisRun = 0;
 
   try {
+    // Check global rate limit status first
+    if (!await canMakeApiCall()) {
+      console.log(`[Worker BTC RUN ${workerRunId}] Global rate limit active, skipping this run.`);
+      return NextResponse.json({ success: true, message: 'Rate limit active, skipping run.' });
+    }
+
     for (let i = 0; i < MAX_TASKS_PER_WORKER_RUN; i++) {
       const taskResult = await executeTransaction(async (executeQueryInTransaction) => {
         const pendingTasks = await executeQueryInTransaction(
@@ -61,11 +91,25 @@ export async function GET() {
         });
         httpStatusCode = r.status;
         chApiResponse = await r.json().catch(() => ({}));
-        if (r.ok) chApiStatus = 'SUCCESS';
-        else chApiError = chApiResponse?.error ?? `HTTP status: ${r.status}`;
+        if (r.ok) {
+          chApiStatus = 'SUCCESS';
+          await updateRateLimitStatus(false); // Reset rate limit on success
+        } else {
+          chApiStatus = 'FAILURE';
+          if (r.status === 429) {
+            chApiError = `Rate limit (429): ${chApiResponse?.message || 'Rate limit error response from CryptoHopper.'}`;
+            // Set rate limit for 5 minutes
+            const limitedUntil = new Date(Date.now() + RATE_LIMIT_BACKOFF_MS);
+            await updateRateLimitStatus(true, limitedUntil);
+          } else {
+            chApiError = chApiResponse?.error ?? `HTTP status: ${r.status}`;
+            await updateRateLimitStatus(false);
+          }
+        }
       } catch (e: any) {
         chApiError = e.message;
         chApiResponse = { fetch_error: e.message };
+        await updateRateLimitStatus(false);
       }
 
       await executeQuery(

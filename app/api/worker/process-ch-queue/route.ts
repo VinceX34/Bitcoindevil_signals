@@ -11,15 +11,44 @@ const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes backoff for rate limit
 
 const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-export const maxDuration = 75; // This function can run for a maximum of 75 seconds
+/** Check if we can make an API call to CryptoHopper */
+async function canMakeApiCall(): Promise<boolean> {
+  const result = await executeQuery(
+    `SELECT is_limited, limited_until FROM rate_limit_status ORDER BY id DESC LIMIT 1`
+  );
+
+  if (result.length === 0) return true;
+
+  const { is_limited, limited_until } = result[0];
+  if (!is_limited) return true;
+  if (!limited_until) return true;
+
+  return new Date(limited_until) < new Date();
+}
+
+/** Update rate limit status */
+async function updateRateLimitStatus(isLimited: boolean, limitedUntil?: Date): Promise<void> {
+  await executeQuery(
+    `INSERT INTO rate_limit_status (is_limited, limited_until) VALUES ($1, $2)`,
+    [isLimited, limitedUntil]
+  );
+}
+
+export const maxDuration = 75;
 
 export async function GET() {
   console.log('[Worker START] Worker process-ch-queue invoked.');
   let tasksProcessedThisRun = 0;
-  const workerRunId = Math.random().toString(36).substring(7); // Unique ID for this worker run
+  const workerRunId = Math.random().toString(36).substring(7);
   console.log(`[Worker RUN ${workerRunId}] Starting run.`);
 
   try {
+    // Check global rate limit status first
+    if (!await canMakeApiCall()) {
+      console.log(`[Worker RUN ${workerRunId}] Global rate limit active, skipping this run.`);
+      return NextResponse.json({ success: true, message: 'Rate limit active, skipping run.' });
+    }
+
     for (let i = 0; i < MAX_TASKS_PER_WORKER_RUN; i++) {
       console.log(`[Worker RUN ${workerRunId}] Loop iteration ${i}, tasksProcessedThisRun: ${tasksProcessedThisRun}`);
       const taskResult = await executeTransaction(async (executeQueryInTransaction) => {
@@ -73,7 +102,7 @@ export async function GET() {
       let chApiStatus: 'SUCCESS' | 'FAILURE' = 'FAILURE';
       let chApiError: string | null = null;
       let chApiResponse: any = null;
-      let httpStatusCode: number | null = null; // Variable to store HTTP status code
+      let httpStatusCode: number | null = null;
 
       try {
         console.log(`[Worker RUN ${workerRunId} Task ${currentTask.id}] ATTEMPTING FETCH to: ${cryptoHopperApiUrl} for Hopper ID: ${hopper_id}. Payload: ${JSON.stringify(payload_to_ch_api)}`);
@@ -83,7 +112,7 @@ export async function GET() {
           headers: { 'Content-Type': 'application/json', 'access-token': access_token },
           body: JSON.stringify(payload_to_ch_api),
         });
-        httpStatusCode = r.status; // Capture HTTP status code here
+        httpStatusCode = r.status;
 
         console.log(`[Worker RUN ${workerRunId} Task ${currentTask.id}] FETCH COMPLETED for Hopper ID: ${hopper_id}. HTTP Status: ${r.status}, OK: ${r.ok}`);
         
@@ -97,12 +126,17 @@ export async function GET() {
 
         if (r.ok) {
           chApiStatus = 'SUCCESS';
+          await updateRateLimitStatus(false); // Reset rate limit on success
         } else {
           chApiStatus = 'FAILURE';
           if (r.status === 429) {
             chApiError = `Rate limit (429): ${chApiResponse?.message || 'Rate limit error response from CryptoHopper.'}`;
+            // Set rate limit for 5 minutes
+            const limitedUntil = new Date(Date.now() + RATE_LIMIT_BACKOFF_MS);
+            await updateRateLimitStatus(true, limitedUntil);
           } else {
             chApiError = chApiResponse?.error ?? chApiResponse?.message ?? `Non-2xx/429 HTTP status: ${r.status}`;
+            await updateRateLimitStatus(false);
           }
           if (typeof chApiResponse !== 'object' || chApiResponse === null) {
              chApiResponse = { actual_response_body: chApiResponse };
@@ -116,6 +150,7 @@ export async function GET() {
         chApiStatus = 'FAILURE';
         chApiError = e.message;
         chApiResponse = { fetch_error: e.message };
+        await updateRateLimitStatus(false);
       }
       
       if(chApiStatus === 'SUCCESS'){
@@ -124,7 +159,7 @@ export async function GET() {
         console.error(`[Worker RUN ${workerRunId} Task ${currentTask.id}] CH API CALL ERROR for Hopper ID: ${hopper_id}. Error: ${chApiError}. Full Response:`, JSON.stringify(chApiResponse, null, 2));
       }
 
-      // 4. Log result in forwarded_signals
+      // Log result in forwarded_signals
       try {
         await executeQuery(
           `INSERT INTO forwarded_signals (tradingview_signal_id, task_sub_id, http_status_code, tradingview_payload, cryptohopper_payload, cryptohopper_response, status, error_message, hopper_id, exchange_name)
@@ -135,24 +170,21 @@ export async function GET() {
         console.error(`[Worker RUN ${workerRunId} Task ${currentTask.id}] Error logging to forwarded_signals: ${dbLogErr.message}.`);
       }
 
-      // 5. Update task status in cryptohopper_queue
+      // Update task status in cryptohopper_queue
       const finalQueueTaskStatus = chApiStatus === 'SUCCESS' ? 'completed' : (httpStatusCode === 429 ? 'rate_limited' : 'failed');
       
-      // Als het rate_limited is, verhoog attempts niet, anders wel (impliciet al gedaan bij 'processing' status update, maar hier expliciet voor 'failed')
-      // De last_attempt_at wordt al gezet bij de 'processing' update.
-      // Voor 'rate_limited' zorgt de SELECT query voor de backoff.
       if (finalQueueTaskStatus === 'rate_limited') {
         await executeQuery(
           `UPDATE cryptohopper_queue
            SET status = $1, error_message = $2, last_attempt_at = NOW() 
-           WHERE id = $3;`, // attempts blijft gelijk
+           WHERE id = $3;`,
           [finalQueueTaskStatus, chApiError, currentTask.id]
         );
-      } else { // completed or failed (non-429)
+      } else {
         await executeQuery(
           `UPDATE cryptohopper_queue
            SET status = $1, error_message = $2 
-           WHERE id = $3;`, // attempts is al verhoogd bij 'processing'
+           WHERE id = $3;`,
           [finalQueueTaskStatus, chApiError, currentTask.id]
         );
       }
