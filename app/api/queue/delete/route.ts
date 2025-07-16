@@ -1,27 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// app/api/queue/delete/route.ts
+
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
-import { ApiResponse } from '@/lib/types';
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
+export async function DELETE() {
+  console.log('[Queue DELETE] Received request to delete all queued signals for default group.');
   try {
-    if (id) {
-      // Delete a specific signal by ID
-      await executeQuery('DELETE FROM cryptohopper_queue WHERE id = $1', [id]);
-      return NextResponse.json<ApiResponse>({ success: true, message: `Queued signal with ID ${id} deleted.` });
-    } else {
-      // No ID provided, delete all queued signals and reset ID sequence
-      await executeQuery('TRUNCATE TABLE cryptohopper_queue RESTART IDENTITY CASCADE;');
-      return NextResponse.json<ApiResponse>({ success: true, message: 'All queued signals deleted and ID sequence restarted.' });
-    }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Error in DELETE /api/queue/delete:', error);
-    return NextResponse.json<ApiResponse>(
-      { success: false, error: 'Failed to delete queued signal(s)', details: errorMessage },
-      { status: 500 }
+    await executeQuery('DELETE FROM cryptohopper_queue;');
+    return NextResponse.json({ success: true, message: 'All queued signals for the default group have been deleted.' });
+  } catch (e: any) {
+    console.error('[Queue DELETE] DB-fout bij het verwijderen van queued signals:', e);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete queued signals', details: e.message },
+      { status: 500 },
     );
   }
 } 

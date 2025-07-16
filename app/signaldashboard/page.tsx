@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import SignalsDisplay from "../components/SignalsDisplay";
 import ForwardedSignalsDisplay from "../components/chsignals";
@@ -28,17 +28,13 @@ export default function SignalDashboardPage() {
   const [mounted, setMounted] = useState(false);
 
   // --- Default Signal States ---
-  const [raw, setRaw] = useState<SimpleTradingViewSignal[]>([]);
-  const [forwarded, setForwarded] = useState<ForwardedSignal[]>([]);
-  const [queued, setQueued] = useState<QueuedSignal[]>([]);
-  
-  // --- BTC Signal States ---
-  const [forwardedBtc, setForwardedBtc] = useState<ForwardedSignal[]>([]);
-  const [queuedBtc, setQueuedBtc] = useState<QueuedSignal[]>([]);
-
-  // --- AI Signal States ---
-  const [forwardedAi, setForwardedAi] = useState<ForwardedSignal[]>([]);
-  const [queuedAi, setQueuedAi] = useState<QueuedSignal[]>([]);
+  const [signals, setSignals] = useState<any[]>([]);
+  const [forwardedSignals, setForwardedSignals] = useState<any[]>([]);
+  const [queuedSignals, setQueuedSignals] = useState<any[]>([]);
+  const [forwardedSignalsBtc, setForwardedSignalsBtc] = useState<any[]>([]);
+  const [queuedSignalsBtc, setQueuedSignalsBtc] = useState<any[]>([]);
+  const [forwardedSignalsAi, setForwardedSignalsAi] = useState<any[]>([]);
+  const [queuedSignalsAi, setQueuedSignalsAi] = useState<any[]>([]);
 
   // --- UI States ---
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
@@ -51,68 +47,53 @@ export default function SignalDashboardPage() {
   const [isQueuedAiSignalsOpen, setQueuedAiSignalsOpen] = useState(true);
   const [currentThemeIsDark, setCurrentThemeIsDark] = useState(true);
 
-  const fetchData = async () => {
+  // Functie om de data op te halen
+  const fetchData = useCallback(async () => {
     try {
-      // Fetch default signals
-      const [rawRes, forwardedRes, queuedRes] = await Promise.all([
-        fetch('/api/webhook'),
-        fetch('/api/cryptohopper'),
-        fetch('/api/queue')
+      // Gebruik Promise.all om alle fetches parallel uit te voeren
+      const [
+        signalsRes,
+        queuedRes,
+        queuedBtcRes,
+        queuedAiRes,
+        forwardedRes,
+        forwardedBtcRes,
+        forwardedAiRes
+      ] = await Promise.all([
+        fetch('/api/webhook?limit=50'), // Fetches raw signals from all groups
+        fetch('/api/queue'),
+        fetch('/api/queue-btc'),
+        fetch('/api/queue-ai'),
+        fetch('/api/forwarded'),
+        fetch('/api/forwarded-btc'),
+        fetch('/api/forwarded-ai'),
       ]);
-      const rawData = await rawRes.json();
-      const forwardedData = await forwardedRes.json();
+
+      const signalsData = await signalsRes.json();
       const queuedData = await queuedRes.json();
-      
-      // Fetch BTC signals
-      const [rawBtcRes, forwardedBtcRes, queuedBtcRes] = await Promise.all([
-        fetch('/api/webhook-btc'),
-        fetch('/api/cryptohopper-btc'),
-        fetch('/api/queue-btc')
-      ]);
-      const rawBtcData = await rawBtcRes.json();
-      const forwardedBtcData = await forwardedBtcRes.json();
       const queuedBtcData = await queuedBtcRes.json();
-      
-      // Fetch AI signals
-      const [rawAiRes, forwardedAiRes, queuedAiRes] = await Promise.all([
-        fetch('/api/webhook-ai'),
-        fetch('/api/cryptohopper-ai'),
-        fetch('/api/queue-ai')
-      ]);
-      const rawAiData = await rawAiRes.json();
-      const forwardedAiData = await forwardedAiRes.json();
       const queuedAiData = await queuedAiRes.json();
+      const forwardedData = await forwardedRes.json();
+      const forwardedBtcData = await forwardedBtcRes.json();
+      const forwardedAiData = await forwardedAiRes.json();
       
-      // Combine and sort raw signals
-      let combinedRawSignals: SimpleTradingViewSignal[] = [];
-      if (rawData.success) {
-        // Add group identifier to default signals
-        const defaultRaw = rawData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'default' }));
-        combinedRawSignals = combinedRawSignals.concat(defaultRaw);
+      // De 'raw' signals worden nu al gecombineerd door de backend, maar we moeten ze sorteren
+      if (signalsData.success) {
+        signalsData.signals.sort((a:any, b:any) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+        setSignals(signalsData.signals);
       }
-      if (rawBtcData.success) {
-        // Add group identifier to btc signals
-        const btcRaw = rawBtcData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'btc' }));
-        combinedRawSignals = combinedRawSignals.concat(btcRaw);
-      }
-      if (rawAiData.success) {
-        const aiRaw = rawAiData.signals.map((s: SimpleTradingViewSignal) => ({ ...s, signal_group: 'ai' }));
-        combinedRawSignals = combinedRawSignals.concat(aiRaw);
-      }
-      combinedRawSignals.sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
       
-      setRaw(combinedRawSignals);
-      if (forwardedData.success) setForwarded(forwardedData.signals);
-      if (queuedData.success) setQueued(queuedData.signals);
-      if (forwardedBtcData.success) setForwardedBtc(forwardedBtcData.signals);
-      if (queuedBtcData.success) setQueuedBtc(queuedBtcData.signals);
-      if (forwardedAiData.success) setForwardedAi(forwardedAiData.signals);
-      if (queuedAiData.success) setQueuedAi(queuedAiData.signals);
+      if (queuedData.success) setQueuedSignals(queuedData.signals.reverse());
+      if (queuedBtcData.success) setQueuedSignalsBtc(queuedBtcData.signals.reverse());
+      if (queuedAiData.success) setQueuedSignalsAi(queuedAiData.signals.reverse());
+      if (forwardedData.success) setForwardedSignals(forwardedData.signals.reverse());
+      if (forwardedBtcData.success) setForwardedSignalsBtc(forwardedBtcData.signals.reverse());
+      if (forwardedAiData.success) setForwardedSignalsAi(forwardedAiData.signals.reverse());
 
     } catch (error) {
       console.error("Failed to fetch signal data:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -123,13 +104,13 @@ export default function SignalDashboardPage() {
     } else {
       fetchData();
     }
-  }, [router]);
+  }, [router, fetchData]);
   
   useEffect(() => {
     if (!authorized) return;
     const interval = setInterval(fetchData, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
-  }, [authorized]);
+  }, [authorized, fetchData]);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setCurrentThemeIsDark(document.documentElement.classList.contains('dark')));
@@ -153,21 +134,53 @@ export default function SignalDashboardPage() {
     }
   };
 
-  const createDeleteHandler = (apiPath: string) => async () => {
-    if (!confirm(`Are you sure you want to delete all signals from ${apiPath}?`)) return;
-    await fetch(apiPath, { method: 'DELETE' });
-    await fetchData();
-  };
+  const createDeleteHandler = useCallback((endpoint: string) => async () => {
+    if (!confirm('Are you sure you want to delete all signals in this group? This cannot be undone.')) {
+      return;
+    }
+    try {
+      const res = await fetch(endpoint, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        alert('All signals in this group have been deleted.');
+        fetchData(); // Refresh data after deletion
+      } else {
+        alert(`Failed to delete signals: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Deletion failed:', error);
+      alert('An error occurred while deleting signals.');
+    }
+  }, [fetchData]);
 
-  const deleteAllRawSignals = async () => {
-    if (!confirm(`Are you sure you want to delete ALL raw signals from ALL groups?`)) return;
-    await Promise.all([
-      fetch('/api/webhook/delete', { method: 'DELETE' }),
-      fetch('/api/webhook-btc', { method: 'DELETE' }),
-      fetch('/api/webhook-ai', { method: 'DELETE' })
-    ]);
-    await fetchData();
-  }
+  const deleteAllRawHandler = useMemo(
+    () => createDeleteHandler('/api/webhook/delete'),
+    [createDeleteHandler]
+  );
+  const deleteQueuedHandler = useMemo(
+    () => createDeleteHandler('/api/queue/delete'),
+    [createDeleteHandler]
+  );
+  const deleteQueuedBtcHandler = useMemo(
+    () => createDeleteHandler('/api/queue-btc/delete'),
+    [createDeleteHandler]
+  );
+  const deleteQueuedAiHandler = useMemo(
+    () => createDeleteHandler('/api/queue-ai/delete'),
+    [createDeleteHandler]
+  );
+  const deleteForwardedHandler = useMemo(
+    () => createDeleteHandler('/api/forwarded/delete'),
+    [createDeleteHandler]
+  );
+  const deleteForwardedBtcHandler = useMemo(
+    () => createDeleteHandler('/api/forwarded-btc/delete'),
+    [createDeleteHandler]
+  );
+  const deleteForwardedAiHandler = useMemo(
+    () => createDeleteHandler('/api/forwarded-ai/delete'),
+    [createDeleteHandler]
+  );
 
   if (!mounted || !authorized) {
     return (
@@ -195,17 +208,17 @@ export default function SignalDashboardPage() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-center">Default Signal Group</h2>
               <ForwardedSignalsDisplay
-                signals={forwarded}
+                signals={forwardedSignals}
+                onDelete={deleteForwardedHandler}
+                isDarkMode={currentThemeIsDark}
                 isOpen={isForwardedSignalsOpen}
                 onToggle={() => setForwardedSignalsOpen(!isForwardedSignalsOpen)}
-                onDelete={createDeleteHandler('/api/cryptohopper/delete')}
-                isDarkMode={currentThemeIsDark}
               />
               <QueuedSignalsDisplay
-                signals={queued}
+                signals={queuedSignals}
                 isOpen={isQueuedSignalsOpen}
                 onToggle={() => setQueuedSignalsOpen(!isQueuedSignalsOpen)}
-                onDelete={createDeleteHandler('/api/queue/delete')}
+                onDelete={deleteQueuedHandler}
                 isDarkMode={currentThemeIsDark}
               />
             </div>
@@ -214,21 +227,21 @@ export default function SignalDashboardPage() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-center">BTC Signal Group</h2>
               <ForwardedSignalsDisplay
-                signals={forwardedBtc}
                 title="Forwarded Signals (BTC Group)"
-                headerColor="bg-orange-600" // New orange color!
+                headerColor="bg-orange-600"
+                signals={forwardedSignalsBtc}
+                onDelete={deleteForwardedBtcHandler}
+                isDarkMode={currentThemeIsDark}
                 isOpen={isForwardedBtcSignalsOpen}
                 onToggle={() => setForwardedBtcSignalsOpen(!isForwardedBtcSignalsOpen)}
-                onDelete={createDeleteHandler('/api/cryptohopper-btc/delete')}
-                isDarkMode={currentThemeIsDark}
               />
               <QueuedSignalsDisplay
-                signals={queuedBtc}
+                signals={queuedSignalsBtc}
                 title="Queued Signals (BTC Group)"
                 headerColor="bg-orange-600"
                 isOpen={isQueuedBtcSignalsOpen}
                 onToggle={() => setQueuedBtcSignalsOpen(!isQueuedBtcSignalsOpen)}
-                onDelete={createDeleteHandler('/api/queue-btc')}
+                onDelete={deleteQueuedBtcHandler}
                 isDarkMode={currentThemeIsDark}
               />
             </div>
@@ -237,31 +250,31 @@ export default function SignalDashboardPage() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-center">AI Signal Group</h2>
               <ForwardedSignalsDisplay
-                signals={forwardedAi}
                 title="Forwarded Signals (AI Group)"
                 headerColor="bg-purple-600"
+                signals={forwardedSignalsAi}
+                onDelete={deleteForwardedAiHandler}
+                isDarkMode={currentThemeIsDark}
                 isOpen={isForwardedAiSignalsOpen}
                 onToggle={() => setForwardedAiSignalsOpen(!isForwardedAiSignalsOpen)}
-                onDelete={createDeleteHandler('/api/cryptohopper-ai/delete')}
-                isDarkMode={currentThemeIsDark}
               />
               <QueuedSignalsDisplay
-                signals={queuedAi}
+                signals={queuedSignalsAi}
                 title="Queued Signals (AI Group)"
                 headerColor="bg-purple-600"
                 isOpen={isQueuedAiSignalsOpen}
                 onToggle={() => setQueuedAiSignalsOpen(!isQueuedAiSignalsOpen)}
-                onDelete={createDeleteHandler('/api/queue-ai')}
+                onDelete={deleteQueuedAiHandler}
                 isDarkMode={currentThemeIsDark}
               />
             </div>
           </div>
 
           <SignalsDisplay
-            signals={raw}
+            signals={signals}
             isOpen={isRawSignalsOpen}
             onToggle={() => setRawSignalsOpen(!isRawSignalsOpen)}
-            onDelete={deleteAllRawSignals}
+            onDelete={deleteAllRawHandler}
             isDarkMode={currentThemeIsDark}
           />
         </div>

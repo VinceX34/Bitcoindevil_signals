@@ -2,16 +2,20 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
+      "path": "/api/cron/queue-new-signals",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/worker/process-ch-queue",
-      "schedule": "*/1 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/worker/process-ch-queue-btc",
-      "schedule": "*/1 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/worker/process-ch-queue-ai",
-      "schedule": "*/1 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
