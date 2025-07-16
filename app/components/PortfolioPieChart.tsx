@@ -66,31 +66,31 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
     const {
       cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value,
     } = props;
+    
     return (
       <g>
         <Sector
           cx={cx}
           cy={cy}
           innerRadius={innerRadius}
-          outerRadius={outerRadius + 16}
+          outerRadius={outerRadius + 12} // Make the hovered segment pop out
           startAngle={startAngle}
           endAngle={endAngle}
           fill={fill}
-          fillOpacity={0.95}
-          filter="url(#shadow)"
+          style={{ filter: 'url(#shadow)' }}
         />
       </g>
     );
   };
 
   return (
-    <div className="relative w-full flex justify-center items-center" style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ width: '100%', height: 480 }}>
+    <div className="relative w-full flex justify-center items-center" style={{ maxWidth: 650, margin: '0 auto' }}>
+      <div style={{ width: '100%', height: 520 }}>
         <ResponsiveContainer>
           <PieChart>
             <defs>
-              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.18" />
+              <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow dx="0" dy="0" stdDeviation="15" floodColor="#000" floodOpacity="0.3" />
               </filter>
               <linearGradient id="layer1-gradient" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0%" stopColor="#0e639c" stopOpacity="0.95" />
@@ -112,8 +112,8 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
               cy="50%"
               labelLine={false}
               label={renderCustomizedLabel}
-              innerRadius={140}
-              outerRadius={210}
+              innerRadius={160}
+              outerRadius={230}
               fill="#8884d8"
               paddingAngle={5}
               dataKey="value"
@@ -121,17 +121,24 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
               activeShape={renderActiveShape}
               onMouseEnter={onPieEnter}
               onMouseLeave={onPieLeave}
+              animationDuration={1000}
+              animationEasing="ease-out"
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={groupConfigs[index].color} fillOpacity={0.85} />
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={groupConfigs[index].color} 
+                  style={{ transition: 'opacity 0.3s ease', cursor: 'pointer' }}
+                  fillOpacity={activeIndex === -1 || activeIndex === index ? 0.95 : 0.4}
+                />
               ))}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className={`text-4xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
-          style={{ textShadow: isDarkMode ? '0 2px 8px #0008' : '0 2px 8px #ccc8' }}>
+        <span className={`text-5xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
+          style={{ textShadow: isDarkMode ? '0 2px 12px #000a' : '0 2px 12px #ccca' }}>
           ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
