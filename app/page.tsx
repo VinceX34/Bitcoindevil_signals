@@ -283,7 +283,7 @@ export default function HomePage() {
 
           {/* Layer 1 Group */}
           <div>
-            <h2 className="text-2xl font-bold mb-4">Layer 1</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca - Layer 1</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {hoppers
                 .filter((hopper) => HOPPER_CONFIGS.some((config) => config.id === hopper.id))
@@ -295,7 +295,7 @@ export default function HomePage() {
 
           {/* BTC and ETH Group */}
           <div>
-            <h2 className="text-2xl font-bold mb-4">BTC and ETH</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca - BTC and ETH</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {hoppers
                 .filter((hopper) => HOPPER_CONFIGS_BTC.some((config) => config.id === hopper.id))
@@ -307,7 +307,7 @@ export default function HomePage() {
 
           {/* A.I and Layer 3 Group */}
           <div>
-            <h2 className="text-2xl font-bold mb-4">A.I and Layer 3</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">Swing trader - A.I and layer 3</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {hoppers
                 .filter((hopper) => HOPPER_CONFIGS_AI.some((config) => config.id === hopper.id))

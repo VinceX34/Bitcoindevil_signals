@@ -1,6 +1,7 @@
 "use client";
 
 import Image from 'next/image';
+import { HOPPER_CONFIGS_AI } from '@/lib/hopperConfig'; // Import AI hopper config
 
 interface HopperData {
   id: string;
@@ -20,20 +21,22 @@ interface Props {
 }
 
 const getLargeExchangeImage = (exchangeName?: string): string => {
-  if (!exchangeName) return '/devil_full_white.png'; // Default large image if exchange is unknown
-  const normalizedExchange = exchangeName.toLowerCase();
+  if (!exchangeName) return '/devil_full_white.png';
+  
+  // Normalize by taking the first part of the name (e.g., "Coinbase" from "Coinbase - EUR")
+  const normalizedExchange = exchangeName.split(' - ')[0].toLowerCase();
+  
   const map: Record<string, string> = {
     'bitvavo': '/Smart-DCA-bitvavo.jpg',
     'bybit': '/smart-dca-bybit.jpg',
     'kucoin': '/smart-dca-Kucoin.jpg',
     'kraken': '/Smart-DCA-Kraken.jpg',
     'crypto.com': '/Smart-DCA-crypto.com.jpg',
-    'crypto': '/Smart-DCA-crypto.com.jpg', // Alias for crypto.com
+    'crypto': '/Smart-DCA-crypto.com.jpg',
     'coinbase': '/Smart-DCA-coinbase.jpg',
-    'coinbasepro': '/Smart-DCA-coinbase.jpg', // Alias for Coinbase
-    // Add any other exchange to image mappings here
+    'coinbasepro': '/Smart-DCA-coinbase.jpg',
   };
-  return map[normalizedExchange] || '/devil_full_white.png'; // Fallback to default if no specific mapping
+  return map[normalizedExchange] || '/devil_full_white.png';
 };
 
 // Map for asset images (small icons)
@@ -61,8 +64,12 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
     });
   };
 
-  // Main image is now always sourced locally based on exchange name
-  const mainImageSrc = getLargeExchangeImage(hopper.exchange);
+  // Determine main image source with new logic
+  const isAiHopper = HOPPER_CONFIGS_AI.some(config => config.id === hopper.id);
+  const mainImageSrc = isAiHopper
+    ? '/Swing-trader-low.jpg'
+    : getLargeExchangeImage(hopper.exchange);
+
 
   const allowedAssetsBase = ['BTC', 'ETH', 'ADA', 'SOL', 'AVAX', 'USDT'];
   const filteredAssets = Object.entries(hopper.assets).filter(([asset]) => {
@@ -87,7 +94,7 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
     >
       <div className="relative aspect-[600/430] bg-gray-200 dark:bg-gray-700">
         <Image
-          src={mainImageSrc} // Uses local image path
+          src={mainImageSrc} // Uses new logic
           alt={hopper.name || hopper.exchange || "Hopper image"}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
