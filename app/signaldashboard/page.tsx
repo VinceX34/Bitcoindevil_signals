@@ -119,16 +119,20 @@ export default function SignalDashboardPage() {
     return () => observer.disconnect();
   }, []);
 
-  const handleProcessQueue = async (group: 'default' | 'btc' | 'ai') => {
+  const handleProcessNewSignals = async () => {
     setIsProcessingQueue(true);
-    const url = group === 'btc' ? '/api/worker/process-ch-queue-btc'
-                : group === 'ai' ? '/api/worker/process-ch-queue-ai'
-                : '/api/worker/process-ch-queue';
     try {
-      await fetch(url);
+      const res = await fetch('/api/cron/queue-new-signals');
+      const data = await res.json();
+      if (data.success) {
+        alert(`${data.processedCount} new signals have been queued.`);
+      } else {
+        alert(`Failed to process new signals: ${data.error}`);
+      }
       await fetchData(); // Refresh data after processing
     } catch (error) {
-      console.error(`Error processing ${group} queue:`, error);
+      console.error('Error processing new signals:', error);
+      alert('An error occurred while processing new signals.');
     } finally {
       setIsProcessingQueue(false);
     }
@@ -196,11 +200,17 @@ export default function SignalDashboardPage() {
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h1 className="text-3xl font-semibold">Signal Dashboard</h1>
-            <div className="flex items-center gap-4">
-              <button onClick={() => handleProcessQueue('default')} disabled={isProcessingQueue}>Process Default Queue</button>
-              <button onClick={() => handleProcessQueue('btc')} disabled={isProcessingQueue}>Process BTC Queue</button>
-              <button onClick={() => handleProcessQueue('ai')} disabled={isProcessingQueue}>Process AI Queue</button>
-            </div>
+            <button
+              onClick={handleProcessNewSignals}
+              disabled={isProcessingQueue}
+              className={`px-4 py-2 rounded-md font-medium ${
+                currentThemeIsDark
+                  ? 'bg-[#0e639c] hover:bg-[#1177bb] text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {isProcessingQueue ? 'Processing...' : 'Process New Signals'}
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
