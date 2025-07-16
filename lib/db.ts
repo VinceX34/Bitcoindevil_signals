@@ -79,8 +79,10 @@ export async function executeQuery(
   const db = getDb(); // Haal de verbinding op
   console.log('SQL:', queryText, 'PARAMS:', params);
   try {
-    const rows = await db.query(queryText, params);
-    return rows;
+    const result = await db.query(queryText, params);
+    // Neon's serverless driver kan 'undefined' of een object zonder 'rows' teruggeven voor non-SELECT queries.
+    // We zorgen ervoor dat we altijd een array teruggeven om consistent te zijn.
+    return Array.isArray(result) ? result : [];
   } catch (e) {
     console.error('DB-error:', e);
     throw e;

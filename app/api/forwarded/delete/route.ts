@@ -7,7 +7,8 @@ import { executeQuery } from '@/lib/db';
 export async function DELETE() {
   console.log('[Forwarded DELETE] Received request to delete all forwarded signals for default group.');
   try {
-    await executeQuery('DELETE FROM forwardedsignals;');
+    await executeQuery('DELETE FROM forwarded_signals;', []);
+    console.log('[Forwarded DELETE] Successfully deleted forwarded signals for default group.');
     return NextResponse.json({ success: true, message: 'All forwarded signals for the default group have been deleted.' });
   } catch (e: any) {
     console.error('[Forwarded DELETE] DB-fout:', e);

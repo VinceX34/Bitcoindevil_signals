@@ -2,30 +2,23 @@
 // app/api/webhook/delete/route.ts
 
 import { NextResponse } from 'next/server';
-import { executeTransaction } from '@/lib/db';
+import { executeQuery } from '@/lib/db';
 
 export async function DELETE() {
-  console.log('[Webhook DELETE] Received request to delete all raw signals.');
+  console.log('[Webhook DELETE] Received request to TRUNCATE all raw signal tables.');
   try {
-    // Gebruik een transactie om zeker te zijn dat alle tabellen tegelijk worden geleegd
-    const result = await executeTransaction(async (tx) => {
-      await tx('DELETE FROM tradingview_signals;');
-      await tx('DELETE FROM tradingview_signals_btc;');
-      await tx('DELETE FROM tradingview_signals_ai;');
-      return { success: true };
-    });
+    // Gebruik TRUNCATE ... RESTART IDENTITY CASCADE om tabellen, gerelateerde data en ID-tellers te resetten.
+    await executeQuery('TRUNCATE TABLE tradingview_signals RESTART IDENTITY CASCADE;', []);
+    await executeQuery('TRUNCATE TABLE tradingview_signals_btc RESTART IDENTITY CASCADE;', []);
+    await executeQuery('TRUNCATE TABLE tradingview_signals_ai RESTART IDENTITY CASCADE;', []);
 
-    if(result.success) {
-        console.log('[Webhook DELETE] Successfully deleted all raw signals from all groups.');
-        return NextResponse.json({ success: true, message: 'All raw signals from all groups have been deleted.' });
-    }
-    
-    throw new Error('Transaction failed unexpectedly.');
+    console.log('[Webhook DELETE] Successfully truncated all raw signal tables and reset ID counters.');
+    return NextResponse.json({ success: true, message: 'All raw signals from all groups have been deleted and ID counters reset.' });
 
   } catch (e: any) {
-    console.error('[Webhook DELETE] DB-fout bij het verwijderen van signalen:', e);
+    console.error('[Webhook DELETE] DB-fout bij het legen van signaaltabellen:', e);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete signals', details: e.message },
+      { success: false, error: 'Failed to truncate signal tables', details: e.message },
       { status: 500 },
     );
   }
