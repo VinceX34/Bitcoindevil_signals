@@ -1,41 +1,51 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/db.ts
-import { neon } from '@neondatabase/serverless';
+import { neon, NeonQueryFunction } from '@neondatabase/serverless';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is not set.');
+// We slaan de verbinding hier op nadat deze voor het eerst is gemaakt.
+let dbInstance: NeonQueryFunction<false, false> | null = null;
+
+// Een "getter" functie die de verbinding opzet als deze nog niet bestaat.
+function getDb() {
+  if (!dbInstance) {
+    if (!process.env.DATABASE_URL) {
+      // Deze fout wordt nu pas gegooid als de variabele echt mist tijdens runtime.
+      throw new Error('DATABASE_URL environment variable is not set.');
+    }
+    console.log('Creating new Neon DB connection instance.');
+    dbInstance = neon(process.env.DATABASE_URL);
+  }
+  return dbInstance;
 }
 
-// 'db' is nu het object van de Neon driver waarop je .query() kunt aanroepen.
-const db = neon(process.env.DATABASE_URL);
-
-// ---------- Type Definities (onveranderd of voeg je types hier toe) --------
+// ---------- Type Definities (onveranderd) --------
 export type SimpleTradingViewSignal = {
   id: number;
   raw_data: any;
   received_at: string; // ISO-string
-  signal_group?: 'default' | 'btc' | 'ai'; // Added 'ai' group
+  signal_group?: 'default' | 'btc' | 'ai';
+  status?: 'new' | 'queued' | 'error';
 };
 
 export interface ForwardedSignal {
-  id: number; // This is the X.Y to be displayed, but actual primary key is different
-  tradingview_signal_id: number | null; // This is X
-  task_sub_id: number | null; // This is Y
-  http_status_code: number | null; // Added HTTP status code
+  id: number;
+  tradingview_signal_id: number | null;
+  task_sub_id: number | null;
+  http_status_code: number | null;
   tradingview_payload: any;
   cryptohopper_payload: any;
   cryptohopper_response: any;
-  status: 'SUCCESS' | 'FAILURE' | 'DB_LOG_FAILURE' | 'SKIPPED_API_BUSY'; // Zorg dat deze types alle mogelijke statussen dekken
+  status: 'SUCCESS' | 'FAILURE' | 'DB_LOG_FAILURE' | 'SKIPPED_API_BUSY';
   error_message: string | null;
   hopper_id: string;
   exchange_name: string;
-  created_at: string; // ISO-string
-  db_log_status?: 'DB_LOG_FAILURE'; // Optioneel als je dit specifiek wilt tracken
+  created_at: string;
+  db_log_status?: 'DB_LOG_FAILURE';
 }
 
 export interface QueuedSignalPayload {
-  original_tv_signal_id: number | null; // This is X
-  task_sub_id: number; // This is Y
+  original_tv_signal_id: number | null;
+  task_sub_id: number;
   hopper_id: string;
   exchange_name: string;
   access_token: string;
@@ -43,30 +53,30 @@ export interface QueuedSignalPayload {
 }
 
 export interface QueuedSignal {
-  id: number; // This is the X.Y to be displayed, but actual primary key is different
+  id: number;
   payload: QueuedSignalPayload;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'rate_limited';
   attempts: number;
   created_at: string;
   last_attempt_at: string | null;
   error_message: string | null;
 }
 
-// New Type for Wealth Snapshots
 export interface WealthSnapshot {
   id: number;
-  snapshot_at: string; // ISO string format from the database
+  snapshot_at: string;
   total_value_usd: number;
 }
 
-// ---------- Algemene Query Helper (Gebruikt .query()) ---------------------
+// ---------- Algemene Query Helper (aangepast) ---------------------
 /**
  * Voert een enkele SQL query uit.
  */
 export async function executeQuery(
   queryText: string,
   params: any[] = [],
-): Promise<any[]> { // Neon's .query() retourneert direct de array van rijen
+): Promise<any[]> {
+  const db = getDb(); // Haal de verbinding op
   console.log('SQL:', queryText, 'PARAMS:', params);
   try {
     const rows = await db.query(queryText, params);
@@ -77,21 +87,20 @@ export async function executeQuery(
   }
 }
 
-// ---------- Transactie Helper (Gebruikt .query() voor BEGIN/COMMIT/ROLLBACK) ---
+// ---------- Transactie Helper (aangepast) ---
 /**
  * Voert een callback functie uit binnen een database transactie.
- * De callback ontvangt een `executeQueryInTransaction` functie om queries binnen de transactie uit te voeren.
  */
 export async function executeTransaction<T>(
   callback: (executeQueryInTransaction: (queryText: string, params?: any[]) => Promise<any[]>) => Promise<T>,
 ): Promise<T> {
+  const db = getDb(); // Haal de verbinding op
   console.log('Starting transaction...');
   await db.query('BEGIN');
   try {
     // Definieer een helper die binnen de transactie queries uitvoert
     const executeQueryInTransaction = async (queryText: string, params: any[] = []): Promise<any[]> => {
       console.log('SQL (Transaction):', queryText, 'PARAMS:', params);
-      // Gebruikt dezelfde 'db' instantie; Neon handelt de transactiecontext af
       return db.query(queryText, params);
     };
 
