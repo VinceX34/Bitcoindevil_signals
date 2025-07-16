@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
 import TotalValueGraph from "./components/TotalValueGraph";
-import WealthHistoryGraph from "./components/WealthHistoryGraph";
+import PortfolioPieChart from "./components/PortfolioPieChart";
 import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI } from "@/lib/hopperConfig";
 
 // Helper to check auth client-side only (used inside a useEffect)
@@ -258,18 +258,6 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* Display Total Portfolio Value from loaded hoppers */}
-          {!loadingHoppers && hoppers.length > 0 && !hoppers.every(h => h.error) && (
-            <div className={`mt-2 mb-4 p-4 rounded-md shadow ${currentThemeIsDark ? 'bg-[#252526] border-[#3c3c3c]' : 'bg-white border-gray-200'} border`}>
-              <p className={`text-xl font-semibold ${currentThemeIsDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                Current portfolio value: 
-                <span className={`${currentThemeIsDark ? 'text-sky-400' : 'text-sky-600'}`}>
-                  ${totalValue.toFixed(2)}
-                </span>
-              </p>
-            </div>
-          )}
-          
           {hopperError && (
             <div className={`p-4 rounded-md ${
               currentThemeIsDark ? 'bg-red-900/50 text-red-200' : 'bg-red-100 text-red-700'
@@ -278,8 +266,8 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Total Value Graph */}
-          <WealthHistoryGraph isDarkMode={currentThemeIsDark} />
+          {/* Portfolio Pie Chart */}
+          <PortfolioPieChart hoppers={hoppers} isDarkMode={currentThemeIsDark} />
 
           {/* Layer 1 Group */}
           <div>
