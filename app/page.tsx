@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
 import TotalValueGraph from "./components/TotalValueGraph";
 import WealthHistoryGraph from "./components/WealthHistoryGraph";
+import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI } from "@/lib/hopperConfig";
 
 // Helper to check auth client-side only (used inside a useEffect)
 const determineClientAuth = (): boolean => {
@@ -17,12 +18,23 @@ const determineClientAuth = (): boolean => {
 
 // Placeholder hopper objects to ensure stable SSR markup
 const PLACEHOLDER_HOPPERS = [
+  // Default Group
   { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', error: true, assets: {}, image: null },
   { id: '1506523', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
   { id: '1455342', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
   { id: '1790517', name: 'Loading...', exchange: 'Kraken', total_cur: '0', error: true, assets: {}, image: null },
   { id: '1808770', name: 'Loading...', exchange: 'Crypto.com', total_cur: '0', error: true, assets: {}, image: null },
   { id: '1817774', name: 'Loading...', exchange: 'Coinbase', total_cur: '0', error: true, assets: {}, image: null },
+  // BTC Group
+  { id: '1989465', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1989473', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1989528', name: 'Loading...', exchange: 'Bybit - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1989545', name: 'Loading...', exchange: 'Kucoin - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  // A.I. Group
+  { id: '1992610', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1992607', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1992597', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1992599', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
 ];
 
 export default function HomePage() {
@@ -269,11 +281,42 @@ export default function HomePage() {
           {/* Total Value Graph */}
           <WealthHistoryGraph isDarkMode={currentThemeIsDark} />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {hoppers.map((hopper) => (
-              <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
-            ))}
+          {/* Layer 1 Group */}
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Layer 1</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {hoppers
+                .filter((hopper) => HOPPER_CONFIGS.some((config) => config.id === hopper.id))
+                .map((hopper) => (
+                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
+                ))}
+            </div>
           </div>
+
+          {/* BTC and ETH Group */}
+          <div>
+            <h2 className="text-2xl font-bold mb-4">BTC and ETH</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {hoppers
+                .filter((hopper) => HOPPER_CONFIGS_BTC.some((config) => config.id === hopper.id))
+                .map((hopper) => (
+                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
+                ))}
+            </div>
+          </div>
+
+          {/* A.I and Layer 3 Group */}
+          <div>
+            <h2 className="text-2xl font-bold mb-4">A.I and Layer 3</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {hoppers
+                .filter((hopper) => HOPPER_CONFIGS_AI.some((config) => config.id === hopper.id))
+                .map((hopper) => (
+                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
+                ))}
+            </div>
+          </div>
+
         </div>
       </main>
       <Footer isDarkMode={currentThemeIsDark} />

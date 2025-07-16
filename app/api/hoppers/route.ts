@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { HOPPER_CONFIGS } from '@/lib/hopperConfig';
+import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI } from '@/lib/hopperConfig';
 
 // Helper function to delay execution
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -15,10 +15,13 @@ export async function GET() {
     );
   }
 
+  // Combine all hopper configurations
+  const allHoppersConfig = [...HOPPER_CONFIGS, ...HOPPER_CONFIGS_BTC, ...HOPPER_CONFIGS_AI];
+
   try {
     // Fetch hoppers sequentially with delay to respect rate limits
     const hoppers = [];
-    for (const { id, exchange } of HOPPER_CONFIGS) {
+    for (const { id, exchange } of allHoppersConfig) {
       try {
         const res = await fetch(`https://api.cryptohopper.com/v1/hopper/${id}`, {
           headers: { 'access-token': accessToken },
@@ -74,7 +77,7 @@ export async function GET() {
         });
 
         // Wait 2 seconds between API calls to respect rate limits (already added before assets fetch).
-        if (id !== HOPPER_CONFIGS[HOPPER_CONFIGS.length - 1].id) {
+        if (id !== allHoppersConfig[allHoppersConfig.length - 1].id) {
           await delay(2000);
         }
       } catch (e) {
@@ -97,7 +100,7 @@ export async function GET() {
   } catch (e: any) {
     console.error('Error in hoppers API:', e);
     // Return placeholder data for all hoppers in case of general error
-    const placeholderHoppers = HOPPER_CONFIGS.map(({ id, exchange }) => ({
+    const placeholderHoppers = allHoppersConfig.map(({ id, exchange }) => ({
       id,
       exchange,
       name: `${exchange} Hopper`,
@@ -107,6 +110,6 @@ export async function GET() {
       assets: {},
       raw: null,
     }));
-    return NextResponse.json({ success: false, hoppers: placeholderHoppers, error: e?.message });
+    return NextResponse.json({ success: false, hoppers: placeholderHoppers, error: e.message });
   }
 } 
