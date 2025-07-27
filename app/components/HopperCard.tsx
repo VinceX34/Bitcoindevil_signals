@@ -39,15 +39,6 @@ const getLargeExchangeImage = (exchangeName?: string): string => {
   return map[normalizedExchange] || '/devil_full_white.png';
 };
 
-// Map for asset images (small icons)
-const assetImageMap: Record<string, string> = {
-  BTC: '/btc.png',
-  ETH: '/eth.png',
-  ADA: '/ada.png',
-  SOL: '/sol.png',
-  AVAX: '/avax.png',
-};
-
 const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
   const formatValue = (value: string, forceTwoDecimals = false) => {
     const num = parseFloat(value);
@@ -71,12 +62,22 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
     : getLargeExchangeImage(hopper.exchange);
 
 
-  const allowedAssetsBase = ['BTC', 'ETH', 'ADA', 'SOL', 'AVAX', 'USDT'];
-  const filteredAssets = Object.entries(hopper.assets).filter(([asset]) => {
+  const allowedAssetsBase = ['BTC', 'ETH', 'SOL', 'AVAX', 'ADA', 'XRP', 'DOT', 'BNB'];
+  const allowedAssetsAi = [...allowedAssetsBase, 'NEAR', 'RENDER', 'TAO', 'MATIC', 'GRT', 'FET'];
+
+  // Create a case-insensitive map of the assets from the API
+  const assetsMap: Record<string, string> = Object.fromEntries(
+    Object.entries(hopper.assets).map(([key, value]) => [key.toUpperCase(), value])
+  );
+
+  // Generate the list of assets to display, ensuring all specified tickers are included
+  const filteredAssets: [string, string][] = (isAiHopper ? allowedAssetsAi : allowedAssetsBase).map(ticker => {
+    return [ticker, assetsMap[ticker] || '0'];
+  });
+
+  // Append other relevant assets like EUR for Bitvavo or USD if they exist
+  const otherAssets = Object.entries(hopper.assets).filter(([asset]) => {
     const upperAsset = asset.toUpperCase();
-    if (allowedAssetsBase.includes(upperAsset)) {
-      return true;
-    }
     if (upperAsset === 'EUR' && hopper.exchange === 'Bitvavo') {
       return true;
     }
@@ -85,6 +86,9 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
     }
     return false;
   });
+
+  // Prepend other assets to the list to maintain a consistent order
+  filteredAssets.unshift(...otherAssets);
 
   return (
     <div
@@ -139,14 +143,9 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
             <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
               {filteredAssets.map(([asset, amount]) => {
                 const upperAsset = asset.toUpperCase();
-                const imageSrc = assetImageMap[upperAsset];
                 return (
                   <div key={asset} className="flex justify-between items-center text-xs">
-                    {imageSrc ? (
-                      <Image src={imageSrc} alt={upperAsset} width={16} height={16} className="mr-2" />
-                    ) : (
-                      <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mr-2 w-16 truncate`} title={asset}>{upperAsset}</span>
-                    )}
+                    <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mr-2 w-16 truncate`} title={asset}>{upperAsset}</span>
                     <span className={`font-medium ${isDarkMode ? 'text-[#e0e0e0]' : 'text-gray-800'}`}>
                       {formatValue(amount)}
                     </span>
