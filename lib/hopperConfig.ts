@@ -6,6 +6,7 @@ export const HOPPER_CONFIGS = [
   { id: '1992607', exchange: 'Kucoin - Swing trader' },
   { id: '1992597', exchange: 'Coinbase - Swing trader EUR' },
   { id: '1992599', exchange: 'Coinbase - Swing trader USDC' },
+  { id: '2084026', exchange: 'OKX - Swing trader' },
 ];
 
 export const HOPPER_CONFIGS_BTC = [
