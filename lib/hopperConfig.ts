@@ -1,12 +1,8 @@
 export const HOPPER_CONFIGS = [
   { id: '1403066', exchange: 'Bitvavo - Smart dca' },
-  { id: '1455342', exchange: 'Kucoin - Smart dca' },
   { id: '1808770', exchange: 'Crypto.com - Smart dca' },
   { id: '1817774', exchange: 'Coinbase - Smart dca' },
-  { id: '1992607', exchange: 'Kucoin - Swing trader' },
-  { id: '1992597', exchange: 'Coinbase - Swing trader EUR' },
-  { id: '1992599', exchange: 'Coinbase - Swing trader USDC' },
-  { id: '2084026', exchange: 'OKX - Swing trader' },
+  { id: '1790517', exchange: 'Kraken X stocks' },
 ];
 
 export const HOPPER_CONFIGS_BTC = [
@@ -16,7 +12,11 @@ export const HOPPER_CONFIGS_BTC = [
 ];
 
 export const HOPPER_CONFIGS_AI = [
-  { id: '1790517', exchange: 'Kraken X stocks' },
+  { id: '1992607', exchange: 'Kucoin - Swing trader' },
+  { id: '1992597', exchange: 'Coinbase - Swing trader EUR' },
+  { id: '1992599', exchange: 'Coinbase - Swing trader USDC' },
+  { id: '2084026', exchange: 'OKX - Swing trader' },
+  { id: '1455342', exchange: 'Kucoin - Smart dca' },
 ];
 
 export interface HopperConfig {
