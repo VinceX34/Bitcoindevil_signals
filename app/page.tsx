@@ -271,7 +271,7 @@ export default function HomePage() {
 
           {/* Layer 1 Group */}
           <div>
-            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca & Swing trader - Layer 1</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {hoppers
                 .filter((hopper) => HOPPER_CONFIGS.some((config) => config.id === hopper.id))
@@ -295,7 +295,7 @@ export default function HomePage() {
 
           {/* A.I and Layer 3 Group */}
           <div>
-            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca - X stocks</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">Swing trader</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {hoppers
                 .filter((hopper) => HOPPER_CONFIGS_AI.some((config) => config.id === hopper.id))

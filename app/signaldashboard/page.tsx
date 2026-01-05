@@ -216,7 +216,7 @@ export default function SignalDashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Column for Default Signals */}
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-center">Layer 1</h2>
+              <h2 className="text-xl font-bold text-center">Smart dca</h2>
               <ForwardedSignalsDisplay
                 signals={forwardedSignals}
                 onDelete={deleteForwardedHandler}
@@ -258,9 +258,9 @@ export default function SignalDashboardPage() {
 
             {/* Column for AI Signals */}
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-center">X stocks</h2>
+              <h2 className="text-xl font-bold text-center">Swing trader</h2>
               <ForwardedSignalsDisplay
-                title="Forwarded Signals (X stocks)"
+                title="Forwarded Signals (Swing trader)"
                 headerColor="bg-purple-600"
                 signals={forwardedSignalsAi}
                 onDelete={deleteForwardedAiHandler}
@@ -270,7 +270,7 @@ export default function SignalDashboardPage() {
               />
               <QueuedSignalsDisplay
                 signals={queuedSignalsAi}
-                title="Queued Signals (X stocks)"
+                title="Queued Signals (Swing trader)"
                 headerColor="bg-purple-600"
                 isOpen={isQueuedAiSignalsOpen}
                 onToggle={() => setQueuedAiSignalsOpen(!isQueuedAiSignalsOpen)}
