@@ -6,15 +6,7 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/worker/process-ch-queue",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/worker/process-ch-queue-btc",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/worker/process-ch-queue-ai",
+      "path": "/api/worker/process-global-queue",
       "schedule": "* * * * *"
     }
   ]
