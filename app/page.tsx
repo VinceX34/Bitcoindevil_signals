@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
 import TotalValueGraph from "./components/TotalValueGraph";
 import PortfolioPieChart from "./components/PortfolioPieChart";
+import Trading212Card, { type Trading212Data } from "./components/Trading212Card";
 
 // Helper to check auth client-side only (used inside a useEffect)
 const determineClientAuth = (): boolean => {
@@ -17,9 +18,9 @@ const determineClientAuth = (): boolean => {
 
 // Active hoppers shown on the home dashboard (API still returns all hoppers)
 const PLACEHOLDER_HOPPERS = [
-  { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1989465', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1992599', name: 'Loading...', exchange: 'Coinbase - Swing trader USDC', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', total_eur: 0, base_currency: 'EUR', error: true, assets: {}, image: null },
+  { id: '1989465', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', total_eur: 0, base_currency: 'EUR', error: true, assets: {}, image: null },
+  { id: '1992599', name: 'Loading...', exchange: 'Coinbase - Swing trader USDC', total_cur: '0', total_eur: 0, base_currency: 'USDC', error: true, assets: {}, image: null },
 ];
 
 export default function HomePage() {
@@ -81,6 +82,30 @@ export default function HomePage() {
   const [loadingHoppers, setLoadingHoppers] = useState(false);
   const [hopperError, setHopperError] = useState<string | null>(null);
   const [initialHopperLoadAttempted, setInitialHopperLoadAttempted] = useState(false);
+  const [trading212, setTrading212] = useState<Trading212Data | null>(null);
+  const [loadingTrading212, setLoadingTrading212] = useState(false);
+
+  const fetchTrading212 = async () => {
+    setLoadingTrading212(true);
+    try {
+      const res = await fetch('/api/trading212');
+      const data = await res.json();
+      setTrading212(data);
+    } catch (e: any) {
+      console.error('Error fetching Trading 212:', e);
+      setTrading212({
+        success: false,
+        error: e?.message || 'Unknown error fetching Trading 212 data.',
+        currency: 'EUR',
+        totalValue: 0,
+        totalValueUsd: 0,
+        cash: { availableToTrade: 0, inPies: 0, reservedForOrders: 0 },
+        positions: [],
+      });
+    } finally {
+      setLoadingTrading212(false);
+    }
+  };
 
   // Fetch hopper data
   const fetchHoppers = async (isManualRefresh = false) => {
@@ -96,7 +121,7 @@ export default function HomePage() {
         processedHoppers = PLACEHOLDER_HOPPERS.map((ph) => fetched.find((h: any) => h.id === ph.id) || { ...ph, name: `${ph.exchange} (Error)`, error: true });
         setHoppers(processedHoppers);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('hopperData', JSON.stringify(processedHoppers));
+          localStorage.setItem('hopperDataV2', JSON.stringify(processedHoppers));
           localStorage.setItem('hopperDataTimestamp', Date.now().toString());
         }
       } else {
@@ -129,7 +154,7 @@ export default function HomePage() {
     if (!mounted || !authorized || initialHopperLoadAttempted) return;
 
     if (typeof window !== 'undefined') {
-      const cachedHoppers = localStorage.getItem('hopperData');
+          const cachedHoppers = localStorage.getItem('hopperDataV2');
       // const cachedTimestamp = localStorage.getItem('hopperDataTimestamp'); // Could use for expiry later
 
       if (cachedHoppers) {
@@ -142,11 +167,12 @@ export default function HomePage() {
             console.log('Loaded hoppers from cache');
             setInitialHopperLoadAttempted(true); // Mark initial load from cache as attempted
             setLoadingHoppers(false); // Ensure loading is false if loaded from cache
-            return; // Loaded from cache, no need to fetch initially
+            fetchTrading212();
+            return; // Loaded from cache, no need to fetch hoppers initially
           }
         } catch (e) {
           console.error('Error parsing cached hopper data:', e);
-          localStorage.removeItem('hopperData'); // Clear corrupted cache
+          localStorage.removeItem('hopperDataV2'); // Clear corrupted cache
           localStorage.removeItem('hopperDataTimestamp');
         }
       }
@@ -154,7 +180,8 @@ export default function HomePage() {
     // If no valid cache, or if it's the first authorized load and initialHopperLoadAttempted is still false
     if (!initialHopperLoadAttempted) {
         console.log('No valid cache or first load, fetching hoppers...');
-        fetchHoppers(); // Pass false or no arg for initial load
+        fetchHoppers();
+        fetchTrading212();
     }
 
   }, [mounted, authorized, initialHopperLoadAttempted]); // Add initialHopperLoadAttempted to dependencies
@@ -232,15 +259,18 @@ export default function HomePage() {
               Home Dashboard
             </h1>
             <button
-              onClick={() => fetchHoppers(true)}
-              disabled={loadingHoppers}
+              onClick={() => {
+                fetchHoppers(true);
+                fetchTrading212();
+              }}
+              disabled={loadingHoppers || loadingTrading212}
               className={`px-4 py-2 rounded-md font-medium ${
                 currentThemeIsDark
                   ? 'bg-[#0e639c] hover:bg-[#1177bb] text-white'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {loadingHoppers ? 'Refreshing...' : 'Refresh Stats'}
+              {loadingHoppers || loadingTrading212 ? 'Refreshing...' : 'Refresh Stats'}
             </button>
           </div>
 
@@ -253,12 +283,21 @@ export default function HomePage() {
           )}
 
           {/* Portfolio Pie Chart */}
-          <PortfolioPieChart hoppers={hoppers} isDarkMode={currentThemeIsDark} />
+          <PortfolioPieChart
+            hoppers={hoppers}
+            isDarkMode={currentThemeIsDark}
+            trading212ValueEur={trading212?.totalValue || 0}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {hoppers.map((hopper) => (
               <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
             ))}
+            <Trading212Card
+              data={trading212}
+              loading={loadingTrading212 && !trading212}
+              isDarkMode={currentThemeIsDark}
+            />
           </div>
 
         </div>

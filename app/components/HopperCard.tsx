@@ -8,6 +8,8 @@ interface HopperData {
   name: string;
   exchange: string;
   total_cur: string;
+  total_eur?: number;
+  base_currency?: string;
   error: boolean;
   assets: {
     [key: string]: string;
@@ -40,6 +42,20 @@ const getLargeExchangeImage = (exchangeName?: string): string => {
 };
 
 const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
+  const formatMoneyEur = (value: number) => {
+    if (!Number.isFinite(value)) return '€0.00';
+    return value.toLocaleString('nl-NL', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const totalEur = Number.isFinite(hopper.total_eur)
+    ? Number(hopper.total_eur)
+    : parseFloat(hopper.total_cur) || 0;
+
   const formatValue = (value: string, forceTwoDecimals = false) => {
     const num = parseFloat(value);
     if (isNaN(num)) return '0.00';
@@ -78,13 +94,7 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
   // Append other relevant assets like EUR for Bitvavo or USD if they exist
   const otherAssets = Object.entries(hopper.assets).filter(([asset]) => {
     const upperAsset = asset.toUpperCase();
-    if (upperAsset === 'EUR' && hopper.exchange === 'Bitvavo') {
-      return true;
-    }
-    if (upperAsset === 'USD') {
-        return true;
-    }
-    return false;
+    return ['EUR', 'USD', 'USDC', 'USDT'].includes(upperAsset);
   });
 
   // Prepend other assets to the list to maintain a consistent order
@@ -130,8 +140,13 @@ const HopperCard: React.FC<Props> = ({ hopper, isDarkMode }) => {
           <div className={`text-right flex-shrink-0 ${isDarkMode ? 'text-[#e0e0e0]' : 'text-gray-800'}`}>
             <p className="text-xs font-medium">Total Value</p>
             <p className="text-base font-bold">
-              ${formatValue(hopper.total_cur, true)}
+              {formatMoneyEur(totalEur)}
             </p>
+            {hopper.base_currency && hopper.base_currency !== 'EUR' && (
+              <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {hopper.base_currency} {formatValue(hopper.total_cur, true)}
+              </p>
+            )}
           </div>
         </div>
 

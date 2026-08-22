@@ -8,28 +8,45 @@ interface Hopper {
   name?: string;
   exchange?: string;
   total_cur: string;
+  total_eur?: number;
 }
 
 interface Props {
   hoppers: Hopper[];
   isDarkMode: boolean;
+  trading212ValueEur?: number;
 }
 
 const HOPPER_COLORS: Record<string, string> = {
   '1403066': 'url(#layer1-gradient)',
   '1989465': 'url(#btc-gradient)',
   '1992599': 'url(#ai-gradient)',
+  'trading212': 'url(#t212-gradient)',
 };
 
-const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
-  const data = hoppers
-    .map(hopper => ({
+const formatEur = (value: number) =>
+  value.toLocaleString('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode, trading212ValueEur = 0 }) => {
+  const data = [
+    ...hoppers.map(hopper => ({
       id: hopper.id,
       name: hopper.exchange || hopper.name || hopper.id,
-      value: parseFloat(hopper.total_cur) || 0,
+      value: Number.isFinite(hopper.total_eur) ? Number(hopper.total_eur) : parseFloat(hopper.total_cur) || 0,
       color: HOPPER_COLORS[hopper.id] || 'url(#layer1-gradient)',
-    }))
-    .filter(d => d.value > 0);
+    })),
+    {
+      id: 'trading212',
+      name: 'Trading 212',
+      value: trading212ValueEur || 0,
+      color: HOPPER_COLORS.trading212,
+    },
+  ].filter(d => d.value > 0);
 
   const totalValue = data.reduce((sum, entry) => sum + entry.value, 0);
 
@@ -53,7 +70,7 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
       return (
         <div className={`p-2 rounded-md shadow-lg ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}>
           <p className="font-semibold">{name}</p>
-          <p>{`$${value.toFixed(2)}`}</p>
+          <p>{formatEur(value)}</p>
         </div>
       );
     }
@@ -107,6 +124,10 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
                 <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.92" />
                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0.7" />
               </linearGradient>
+              <linearGradient id="t212-gradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#16a34a" stopOpacity="0.92" />
+                <stop offset="100%" stopColor="#4ade80" stopOpacity="0.7" />
+              </linearGradient>
             </defs>
             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
             <Pie
@@ -142,7 +163,7 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <span className={`text-5xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
           style={{ textShadow: isDarkMode ? '0 2px 12px #000a' : '0 2px 12px #ccca' }}>
-          ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {formatEur(totalValue)}
         </span>
       </div>
     </div>
