@@ -5,7 +5,6 @@ import Footer from "./components/Footer";
 import HopperCard from "./components/HopperCard";
 import TotalValueGraph from "./components/TotalValueGraph";
 import PortfolioPieChart from "./components/PortfolioPieChart";
-import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI } from "@/lib/hopperConfig";
 
 // Helper to check auth client-side only (used inside a useEffect)
 const determineClientAuth = (): boolean => {
@@ -16,25 +15,11 @@ const determineClientAuth = (): boolean => {
   return document.cookie.split('; ').some(c => c.startsWith('authorized='));
 };
 
-// Placeholder hopper objects to ensure stable SSR markup
+// Active hoppers shown on the home dashboard (API still returns all hoppers)
 const PLACEHOLDER_HOPPERS = [
-  // Default Group
   { id: '1403066', name: 'Loading...', exchange: 'Bitvavo', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1506523', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1455342', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1790517', name: 'Loading...', exchange: 'Kraken', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1808770', name: 'Loading...', exchange: 'Crypto.com', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1817774', name: 'Loading...', exchange: 'Coinbase', total_cur: '0', error: true, assets: {}, image: null },
-  // BTC Group
   { id: '1989465', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1989473', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1989528', name: 'Loading...', exchange: 'Bybit - USDC', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1989545', name: 'Loading...', exchange: 'Kucoin - USDC', total_cur: '0', error: true, assets: {}, image: null },
-  // A.I. Group
-  { id: '1992610', name: 'Loading...', exchange: 'Bybit', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1992607', name: 'Loading...', exchange: 'Kucoin', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1992597', name: 'Loading...', exchange: 'Coinbase - EUR', total_cur: '0', error: true, assets: {}, image: null },
-  { id: '1992599', name: 'Loading...', exchange: 'Coinbase - USDC', total_cur: '0', error: true, assets: {}, image: null },
+  { id: '1992599', name: 'Loading...', exchange: 'Coinbase - Swing trader USDC', total_cur: '0', error: true, assets: {}, image: null },
 ];
 
 export default function HomePage() {
@@ -150,8 +135,9 @@ export default function HomePage() {
       if (cachedHoppers) {
         try {
           const parsedHoppers = JSON.parse(cachedHoppers);
-          // Basic validation: ensure it's an array and has expected structure (e.g., 6 items)
-          if (Array.isArray(parsedHoppers) && parsedHoppers.length === PLACEHOLDER_HOPPERS.length) {
+          const cachedIds = Array.isArray(parsedHoppers) ? parsedHoppers.map((h: any) => h.id).join(',') : '';
+          const expectedIds = PLACEHOLDER_HOPPERS.map((h) => h.id).join(',');
+          if (Array.isArray(parsedHoppers) && cachedIds === expectedIds) {
             setHoppers(parsedHoppers);
             console.log('Loaded hoppers from cache');
             setInitialHopperLoadAttempted(true); // Mark initial load from cache as attempted
@@ -269,40 +255,10 @@ export default function HomePage() {
           {/* Portfolio Pie Chart */}
           <PortfolioPieChart hoppers={hoppers} isDarkMode={currentThemeIsDark} />
 
-          {/* Layer 1 Group */}
-          <div>
-            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {hoppers
-                .filter((hopper) => HOPPER_CONFIGS.some((config) => config.id === hopper.id))
-                .map((hopper) => (
-                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
-                ))}
-            </div>
-          </div>
-
-          {/* BTC and ETH Group */}
-          <div>
-            <h2 className="text-2xl font-bold mb-4 text-center">Smart dca - BTC & ETH</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {hoppers
-                .filter((hopper) => HOPPER_CONFIGS_BTC.some((config) => config.id === hopper.id))
-                .map((hopper) => (
-                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
-                ))}
-            </div>
-          </div>
-
-          {/* A.I and Layer 3 Group */}
-          <div>
-            <h2 className="text-2xl font-bold mb-4 text-center">Swing trader</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {hoppers
-                .filter((hopper) => HOPPER_CONFIGS_AI.some((config) => config.id === hopper.id))
-                .map((hopper) => (
-                  <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
-                ))}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {hoppers.map((hopper) => (
+              <HopperCard key={hopper.id} hopper={hopper} isDarkMode={currentThemeIsDark} />
+            ))}
           </div>
 
         </div>

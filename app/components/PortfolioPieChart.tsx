@@ -1,11 +1,12 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Sector } from 'recharts';
-import { HOPPER_CONFIGS, HOPPER_CONFIGS_BTC, HOPPER_CONFIGS_AI } from "@/lib/hopperConfig";
 import { useState } from 'react';
 
 interface Hopper {
   id: string;
+  name?: string;
+  exchange?: string;
   total_cur: string;
 }
 
@@ -14,19 +15,21 @@ interface Props {
   isDarkMode: boolean;
 }
 
-const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
-  const groupConfigs = [
-    { name: 'Smart dca - Layer 1', ids: new Set(HOPPER_CONFIGS.map(h => h.id)), color: 'url(#layer1-gradient)' },
-    { name: 'Smart dca - BTC and ETH', ids: new Set(HOPPER_CONFIGS_BTC.map(h => h.id)), color: 'url(#btc-gradient)' },
-    { name: 'Swing trader - A.I and layer 3', ids: new Set(HOPPER_CONFIGS_AI.map(h => h.id)), color: 'url(#ai-gradient)' },
-  ];
+const HOPPER_COLORS: Record<string, string> = {
+  '1403066': 'url(#layer1-gradient)',
+  '1989465': 'url(#btc-gradient)',
+  '1992599': 'url(#ai-gradient)',
+};
 
-  const data = groupConfigs.map(group => {
-    const value = hoppers
-      .filter(hopper => group.ids.has(hopper.id))
-      .reduce((sum, hopper) => sum + (parseFloat(hopper.total_cur) || 0), 0);
-    return { name: group.name, value };
-  }).filter(d => d.value > 0); // Filter out empty groups
+const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
+  const data = hoppers
+    .map(hopper => ({
+      id: hopper.id,
+      name: hopper.exchange || hopper.name || hopper.id,
+      value: parseFloat(hopper.total_cur) || 0,
+      color: HOPPER_COLORS[hopper.id] || 'url(#layer1-gradient)',
+    }))
+    .filter(d => d.value > 0);
 
   const totalValue = data.reduce((sum, entry) => sum + entry.value, 0);
 
@@ -126,8 +129,8 @@ const PortfolioPieChart: React.FC<Props> = ({ hoppers, isDarkMode }) => {
             >
               {data.map((entry, index) => (
                 <Cell 
-                  key={`cell-${index}`} 
-                  fill={groupConfigs[index].color} 
+                  key={`cell-${entry.id}`} 
+                  fill={entry.color} 
                   style={{ transition: 'opacity 0.3s ease', cursor: 'pointer' }}
                   fillOpacity={activeIndex === -1 || activeIndex === index ? 0.95 : 0.4}
                 />
